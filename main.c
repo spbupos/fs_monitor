@@ -9,6 +9,7 @@
 #include <linux/debugfs.h>
 #include <linux/slab.h>
 #include <linux/proc_fs.h>
+#include <linux/mount.h>
 #include "header.h"
 
 
@@ -51,13 +52,9 @@ static void log_file_event(struct inode *inode, const char *full_path, size_t fi
     }
 
     // 4. Store log data in binary format in log_buffer
-    if (log_index < MAX_LOG_ENTRIES) {
-        snprintf(log_buffer + log_index * LOG_ENTRY_SIZE, LOG_ENTRY_SIZE,
-                 "Timestamp(ns): %lld\nDevice: %s\nPath: %s\nData: %.*s\nStatus: %d\n\n",
-                 timestamp_ns, dev_path, full_path, (int)bytes_read, file_content, operation_status);
-        log_index++;
-    }
-
+    snprintf(log_buffer, LOG_ENTRY_SIZE,
+        "Timestamp(ns): %lld\nDevice: %s\nPath: %s\nData: %.*s\nStatus: %d\n\n",
+            timestamp_ns, dev_path, full_path, (int)bytes_read, file_content, operation_status);
 }
 
 
@@ -69,8 +66,8 @@ static int monitor_event_handler(struct fsnotify_group *group, u32 mask, const v
     char full_path[256];
     size_t file_size = 0;
 
-    // Get the inode from the data
-    if (!data) {
+    // stop work if no data or event is not creation or modification
+    if (!data || !(mask & FS_CREATE) && !(mask & FS_MODIFY)) {
         return 0;
     }
     switch (data_type) {
@@ -111,29 +108,30 @@ static const struct fsnotify_ops fsnotify_ops = {
 
 
 // Read function to output `log_buffer` to user space
-static ssize_t proc_read_log(struct file *file, char __user *buf, size_t len, loff_t *ppos) {
-    size_t log_size = log_index * LOG_ENTRY_SIZE;
-    ssize_t ret;
+static ssize_t proc_read(struct file *file, char __user *buffer, size_t count, loff_t *pos) {
+    int len = strlen(log_buffer);
+    if (*pos > 0 || count < len)
+        return 0;  // End of file if position is non-zero
 
-    // Ensure we're not trying to read beyond the buffer
-    if (*ppos >= log_size)
-        return 0;
+    if (copy_to_user(buffer, log_buffer, len))
+        return -EFAULT;  // Return an error if copy_to_user fails
 
-    // Copy data from kernel space to user space
-    ret = simple_read_from_buffer(buf, len, ppos, log_buffer, log_size);
-
-    return ret;
+    *pos = len;  // Update position
+    return len;
 }
 
 // Define file operations for the proc entry
 static const struct proc_ops proc_fops = {
-    .proc_read = proc_read_log,
+    .proc_read = proc_read,
 };
 
 
 static int __init fs_monitor_init(void) {
     struct vfsmount *mnt;
     struct list_head *p;
+    struct path *path;
+    int ret;
+
     printk(KERN_INFO "Initializing FS Monitor Module\n");
 
     // Set up your device or proc file for logging data
@@ -146,7 +144,31 @@ static int __init fs_monitor_init(void) {
 
     // iterate over all mounted filesystems and monitor them
     monitor_group = fsnotify_alloc_group(&fsnotify_ops, 0);
-    // HERE IS SOMETHING FOR MONITORING, IDK WHAT
+    if (IS_ERR(monitor_group)) {
+        printk(KERN_ERR "Failed to allocate fsnotify group\n");
+        proc_remove(proc_entry);
+        kfree(log_buffer);
+        return PTR_ERR(monitor_group);
+    }
+
+    // Get the path for the root directory "/"
+    ret = kern_path("/", LOOKUP_FOLLOW, path);
+    if (ret) {
+        fsnotify_put_group(monitor_group);
+        remove_proc_entry(PROC_FILE_NAME, NULL);
+        kfree(log_buffer);
+        return ret;
+    }
+
+    // Add watch to the root directory
+    ret = fsnotify_add_inode_mark(&path->dentry->d_inode, monitor_group, FS_MODIFY | FS_CREATE, 0, NULL, NULL);
+    path_put(path);  // Release path
+    if (ret) {
+        fsnotify_put_group(monitor_group);
+        remove_proc_entry(PROC_FILE_NAME, NULL);
+        kfree(log_buffer);
+        return ret;
+    }
 
     // DEBUG: print something to log_buffer to check if printing to proc works
     snprintf(log_buffer, LOG_ENTRY_SIZE, "Hello, world!\n");
