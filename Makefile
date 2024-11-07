@@ -1,16 +1,18 @@
 obj-m += hello.o
 
-# we have no file "hello.c" in this example
-# therefore we specify: module hello.ko relies on
-# main.c and greet.c ... it's this makefile module magic thing..
-# see online resources for more information
-# YOU DON'T need this IF you have *.c-file with the name of the
-# final kernel module :)
-hello-y := \
-	main.o \
+hello-y := main.o # and something else
 
-all:
-	make -C /lib/modules/$(shell uname -r)/build/ M=$(PWD) modules
+BUILD_DIR := $(PWD)/build
+BUILD_DIR_MAKEFILE := $(BUILD_DIR)/Makefile
+
+all: $(BUILD_DIR_MAKEFILE)
+	make -C /lib/modules/$(shell uname -r)/build src=$(PWD) M=$(BUILD_DIR) modules
+
+$(BUILD_DIR):
+	mkdir -p "$@"
+
+$(BUILD_DIR_MAKEFILE): $(BUILD_DIR)
+	touch "$@"
 
 clean:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	make -C /lib/modules/$(shell uname -r)/build src=$(PWD) M=$(BUILD_DIR) clean

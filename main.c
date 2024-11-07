@@ -98,6 +98,7 @@ static int monitor_event_handler(struct fsnotify_group *group, u32 mask, const v
     }
 
     // Log the file event
+    printk(KERN_INFO "File event: %s\n", full_path);
     log_file_event(inode, full_path, file_size);
 
     return 0;
@@ -105,7 +106,7 @@ static int monitor_event_handler(struct fsnotify_group *group, u32 mask, const v
 
 
 static const struct fsnotify_ops fsnotify_ops = {
-        .handle_event = monitor_event_handler,
+    .handle_event = monitor_event_handler,
 };
 
 
@@ -136,14 +137,19 @@ static int __init fs_monitor_init(void) {
     printk(KERN_INFO "Initializing FS Monitor Module\n");
 
     // Set up your device or proc file for logging data
-    if (!proc_create(PROC_FILE_NAME, 0444, NULL, &proc_fops)) {
+    proc_entry = proc_create(PROC_FILE_NAME, 0444, NULL, &proc_fops);
+    if (!proc_entry) {
         printk(KERN_ERR "Failed to create /proc/%s\n", PROC_FILE_NAME);
         return -ENOMEM;
     }
     printk(KERN_INFO "/proc/%s created for file monitoring logs\n", PROC_FILE_NAME);
 
-    // now enable monitoring with fsnotify
+    // iterate over all mounted filesystems and monitor them
     monitor_group = fsnotify_alloc_group(&fsnotify_ops, 0);
+    // HERE IS SOMETHING FOR MONITORING, IDK WHAT
+
+    // DEBUG: print something to log_buffer to check if printing to proc works
+    snprintf(log_buffer, LOG_ENTRY_SIZE, "Hello, world!\n");
 
     printk(KERN_INFO "FS Monitor Module Initialized\n");
     return 0;
@@ -154,7 +160,8 @@ static void __exit fs_monitor_exit(void) {
     printk(KERN_INFO "Exiting FS Monitor Module\n");
 
     // Clean up
-    debugfs_remove(output_dentry);
+    proc_remove(proc_entry);
+    fsnotify_put_group(monitor_group);
 }
 
 

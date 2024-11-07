@@ -2,7 +2,6 @@
 #define VARS_H
 
 // global structs for monitoring
-static struct dentry *output_dentry;
 static struct fsnotify_group *monitor_group;
 
 // Buffer to store logs for the virtual file (used in Step 4)
@@ -14,9 +13,7 @@ static size_t log_index = 0;
 // name of file in proc
 #define PROC_FILE_NAME "fs_monitor"
 
-// VFS functions
-struct file *file_open(const char *path, int flags, int rights);
-void file_close(struct file *file);
-int file_read(struct file *file, unsigned long long offset, unsigned char *data, unsigned int size);
+// proc dir entry for deletion at close
+static struct proc_dir_entry *proc_entry;
 
 #endif // VARS_H

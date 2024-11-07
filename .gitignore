@@ -36,8 +36,4 @@ cmake-build-debug/
 .idea/
 
 # kernel module compilation files
-*.ko
-*.mod.c
-*.cmd
-Module.symvers
-modules.order
+build/
