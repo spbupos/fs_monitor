@@ -47,7 +47,7 @@ static void log_file_event(struct inode *inode, const char *full_path, size_t fi
     }
 
     // 4. Store log data in binary format in log_buffer
-    snprintf(log_buffer, LOG_ENTRY_SIZE,
+    snprintf(log_buffer + LOG_ENTRY_SIZE * entry_count++, LOG_ENTRY_SIZE,
         "Timestamp(ns): %lld\nDevice: %s\nPath: %s\nData: %.*s\nStatus: %d\n\n",
             timestamp_ns, dev_path, full_path, (int)bytes_read, file_content, operation_status);
 }
@@ -59,6 +59,7 @@ static int monitor_event_handler(struct fsnotify_mark *mark, u32 mask,
     char full_path[256];
     size_t file_size = 0;
 
+    printk(KERN_INFO "Monitor event handler activated\n");
     // stop work if no data or event is not creation or modification
     if (!(mask & FS_CREATE) && !(mask & FS_MODIFY)) {
         return 0;
@@ -87,14 +88,14 @@ static const struct fsnotify_ops fsnotify_ops = {
 
 // Read function to output `log_buffer` to user space
 static ssize_t proc_read(struct file *file, char __user *buffer, size_t count, loff_t *pos) {
-    int len = strlen(log_buffer);
-    if (*pos > 0 || count < len)
+    int len = LOG_ENTRY_SIZE * entry_count;
+    if (*pos > 0)
         return 0;  // End of file if position is non-zero
 
     if (copy_to_user(buffer, log_buffer, len))
         return -EFAULT;  // Return an error if copy_to_user fails
 
-    *pos = len;  // Update position
+    *pos = len; // Update position
     return len;
 }
 
@@ -107,7 +108,7 @@ static const struct proc_ops proc_fops = {
 
 static int __init fs_monitor_init(void) {
     struct path path;
-    int ret;
+    int ret, i;
 
     printk(KERN_INFO "Initializing FS Monitor Module\n");
 
@@ -120,7 +121,7 @@ static int __init fs_monitor_init(void) {
     printk(KERN_INFO "/proc/%s created for file monitoring logs\n", PROC_FILE_NAME);
 
     // alloc buffer
-    log_buffer = kmalloc(LOG_ENTRY_SIZE, GFP_KERNEL);
+    log_buffer = kmalloc(LOG_ENTRY_SIZE * LOG_MAX_ENTRIES, GFP_KERNEL);
     if (!log_buffer) {
         printk(KERN_ERR "Failed to allocate log buffer\n");
         proc_remove(proc_entry);
@@ -128,7 +129,7 @@ static int __init fs_monitor_init(void) {
     }
 
     // iterate over all mounted filesystems and monitor them
-    monitor_group = fsnotify_alloc_group(&fsnotify_ops, 0);
+    monitor_group = fsnotify_alloc_group(&fsnotify_ops, FSNOTIFY_GROUP_USER);
     if (IS_ERR(monitor_group)) {
         printk(KERN_ERR "Failed to allocate fsnotify group\n");
         proc_remove(proc_entry);
@@ -159,7 +160,7 @@ static int __init fs_monitor_init(void) {
     }
 
     // Add watch to the root directory
-    ret = fsnotify_add_inode_mark(mark, path.dentry->d_inode, 0); // idk what flags needed
+    ret = fsnotify_add_inode_mark(mark, path.dentry->d_inode, FSNOTIFY_MARK_FLAG_ALIVE);
     path_put(&path);  // Release path
     if (ret) {
         printk(KERN_ERR "Failed to add inode mark\n");
@@ -171,7 +172,10 @@ static int __init fs_monitor_init(void) {
     }
 
     // DEBUG: print something to log_buffer to check if printing to proc works
-    snprintf(log_buffer, LOG_ENTRY_SIZE, "Hello, world!\n");
+    for (i = 0; i < 10; i++) {
+        snprintf(log_buffer + LOG_ENTRY_SIZE * entry_count++,
+                LOG_ENTRY_SIZE, "Hello, world! %d\n", i);
+    }
 
     printk(KERN_INFO "FS Monitor Module Initialized\n");
     return 0;
