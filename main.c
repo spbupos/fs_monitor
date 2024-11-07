@@ -105,11 +105,6 @@ static const struct proc_ops proc_fops = {
 };
 
 
-static struct fsnotify_mark mark = {
-    .group = NULL,
-};
-
-
 static int __init fs_monitor_init(void) {
     struct path path;
     int ret;
@@ -140,11 +135,23 @@ static int __init fs_monitor_init(void) {
         kfree(log_buffer);
         return PTR_ERR(monitor_group);
     }
-    mark.group = monitor_group;
+
+    // alloc and init mark
+    mark = kmalloc(sizeof(struct fsnotify_mark), GFP_KERNEL);
+    if (!mark) {
+        printk(KERN_ERR "Failed to allocate fsnotify mark\n");
+        fsnotify_put_group(monitor_group);
+        remove_proc_entry(PROC_FILE_NAME, NULL);
+        kfree(log_buffer);
+        return -ENOMEM;
+    }
+    fsnotify_init_mark(mark, monitor_group);
 
     // Get the path for the root directory "/"
     ret = kern_path("/", LOOKUP_FOLLOW, &path);
     if (ret) {
+        printk(KERN_ERR "Failed to get path for root directory\n");
+        fsnotify_put_mark(mark);
         fsnotify_put_group(monitor_group);
         remove_proc_entry(PROC_FILE_NAME, NULL);
         kfree(log_buffer);
@@ -152,9 +159,11 @@ static int __init fs_monitor_init(void) {
     }
 
     // Add watch to the root directory
-    ret = fsnotify_add_inode_mark(&mark, path.dentry->d_inode, FS_MODIFY | FS_CREATE);
+    ret = fsnotify_add_inode_mark(mark, path.dentry->d_inode, 0); // idk what flags needed
     path_put(&path);  // Release path
     if (ret) {
+        printk(KERN_ERR "Failed to add inode mark\n");
+        fsnotify_put_mark(mark);
         fsnotify_put_group(monitor_group);
         remove_proc_entry(PROC_FILE_NAME, NULL);
         kfree(log_buffer);
@@ -174,7 +183,7 @@ static void __exit fs_monitor_exit(void) {
 
     // Clean up
     proc_remove(proc_entry);
-    fsnotify_destroy_mark(&mark, monitor_group);
+    fsnotify_put_mark(mark);
     fsnotify_put_group(monitor_group);
 }
 

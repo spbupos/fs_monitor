@@ -14,4 +14,7 @@ static char *log_buffer;
 // proc dir entry for deletion at close
 static struct proc_dir_entry *proc_entry;
 
+// mark
+static struct fsnotify_mark *mark;
+
 #endif // VARS_H
