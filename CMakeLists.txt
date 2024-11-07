@@ -8,6 +8,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 find_package(KernelHeaders REQUIRED)
 add_definitions(-D__KERNEL__ -DMODULE)
 
-add_executable(fs_journaler main.c)
+add_executable(fs_journaler main.c
+        header.h
+)
 
 target_include_directories(fs_journaler PRIVATE ${KERNELHEADERS_INCLUDE_DIRS})
