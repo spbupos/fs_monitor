@@ -10,13 +10,8 @@
 #include <linux/slab.h>
 #include <linux/proc_fs.h>
 #include <linux/mount.h>
+#include <linux/namei.h>
 #include "header.h"
-
-
-MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Your Name");
-MODULE_DESCRIPTION("Extended R/W access monitoring module");
-MODULE_VERSION("0.1.0");
 
 
 static void log_file_event(struct inode *inode, const char *full_path, size_t file_size) {
@@ -58,36 +53,19 @@ static void log_file_event(struct inode *inode, const char *full_path, size_t fi
 }
 
 
-static int monitor_event_handler(struct fsnotify_group *group, u32 mask, const void *data, int data_type,
-                                 struct inode *dir, const struct qstr *file_name, u32 cookie,
-                                 struct fsnotify_iter_info *iter_info) {
-    struct inode *inode = NULL;
-    struct dentry *dentry = NULL;
+static int monitor_event_handler(struct fsnotify_mark *mark, u32 mask,
+                                 struct inode *inode, struct inode *dir,
+                                 const struct qstr *file_name, u32 cookie){
     char full_path[256];
     size_t file_size = 0;
 
     // stop work if no data or event is not creation or modification
-    if (!data || !(mask & FS_CREATE) && !(mask & FS_MODIFY)) {
+    if (!(mask & FS_CREATE) && !(mask & FS_MODIFY)) {
         return 0;
-    }
-    switch (data_type) {
-        case FSNOTIFY_EVENT_INODE:
-            inode = (struct inode *) data;
-            break;
-        case FSNOTIFY_EVENT_DENTRY:
-            dentry = (struct dentry *) data;
-            inode = dentry->d_inode;
-            break;
-        default:
-            break;
     }
 
     // Get the full path of the file
-    if (dentry) {
-        snprintf(full_path, sizeof(full_path), "%p/%p", dentry->d_parent->d_name.name, dentry->d_name.name);
-    } else {
-        snprintf(full_path, sizeof(full_path), "%s/%p", dir->i_sb->s_id, file_name->name);
-    }
+    snprintf(full_path, sizeof(full_path), "%s/%p", dir->i_sb->s_id, file_name->name);
 
     // Get the file size
     if (inode) {
@@ -103,7 +81,7 @@ static int monitor_event_handler(struct fsnotify_group *group, u32 mask, const v
 
 
 static const struct fsnotify_ops fsnotify_ops = {
-    .handle_event = monitor_event_handler,
+    .handle_inode_event = monitor_event_handler,
 };
 
 
@@ -120,16 +98,20 @@ static ssize_t proc_read(struct file *file, char __user *buffer, size_t count, l
     return len;
 }
 
+
 // Define file operations for the proc entry
 static const struct proc_ops proc_fops = {
     .proc_read = proc_read,
 };
 
 
+static struct fsnotify_mark mark = {
+    .group = NULL,
+};
+
+
 static int __init fs_monitor_init(void) {
-    struct vfsmount *mnt;
-    struct list_head *p;
-    struct path *path;
+    struct path path;
     int ret;
 
     printk(KERN_INFO "Initializing FS Monitor Module\n");
@@ -142,6 +124,14 @@ static int __init fs_monitor_init(void) {
     }
     printk(KERN_INFO "/proc/%s created for file monitoring logs\n", PROC_FILE_NAME);
 
+    // alloc buffer
+    log_buffer = kmalloc(LOG_ENTRY_SIZE, GFP_KERNEL);
+    if (!log_buffer) {
+        printk(KERN_ERR "Failed to allocate log buffer\n");
+        proc_remove(proc_entry);
+        return -ENOMEM;
+    }
+
     // iterate over all mounted filesystems and monitor them
     monitor_group = fsnotify_alloc_group(&fsnotify_ops, 0);
     if (IS_ERR(monitor_group)) {
@@ -150,9 +140,10 @@ static int __init fs_monitor_init(void) {
         kfree(log_buffer);
         return PTR_ERR(monitor_group);
     }
+    mark.group = monitor_group;
 
     // Get the path for the root directory "/"
-    ret = kern_path("/", LOOKUP_FOLLOW, path);
+    ret = kern_path("/", LOOKUP_FOLLOW, &path);
     if (ret) {
         fsnotify_put_group(monitor_group);
         remove_proc_entry(PROC_FILE_NAME, NULL);
@@ -161,8 +152,8 @@ static int __init fs_monitor_init(void) {
     }
 
     // Add watch to the root directory
-    ret = fsnotify_add_inode_mark(&path->dentry->d_inode, monitor_group, FS_MODIFY | FS_CREATE, 0, NULL, NULL);
-    path_put(path);  // Release path
+    ret = fsnotify_add_inode_mark(&mark, path.dentry->d_inode, FS_MODIFY | FS_CREATE);
+    path_put(&path);  // Release path
     if (ret) {
         fsnotify_put_group(monitor_group);
         remove_proc_entry(PROC_FILE_NAME, NULL);
@@ -183,9 +174,16 @@ static void __exit fs_monitor_exit(void) {
 
     // Clean up
     proc_remove(proc_entry);
+    fsnotify_destroy_mark(&mark, monitor_group);
     fsnotify_put_group(monitor_group);
 }
 
 
 module_init(fs_monitor_init);
 module_exit(fs_monitor_exit);
+
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Your Name");
+MODULE_DESCRIPTION("Extended R/W access monitoring module");
+MODULE_VERSION("0.1.0");
