@@ -3,7 +3,7 @@
 
 # Find the kernel release
 execute_process(
-        COMMAND bash -c "uname -r | sed 's/-[^-]*$//'" # Remove the -ARCH suffix
+        COMMAND uname -r
         OUTPUT_VARIABLE KERNEL_RELEASE
         OUTPUT_STRIP_TRAILING_WHITESPACE
 )
@@ -11,7 +11,7 @@ execute_process(
 # Find the headers
 find_path(KERNELHEADERS_DIR
         include/linux/user.h
-        PATHS /usr/src/linux-headers-${KERNEL_RELEASE}-common
+        PATHS /lib/modules/${KERNEL_RELEASE}/build
         )
 
 message(STATUS "Kernel release: ${KERNEL_RELEASE}")
