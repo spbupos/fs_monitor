@@ -9,38 +9,33 @@ MODULE_DESCRIPTION("Kprobe Example to Track 'write' Syscall with First 5 Bytes o
 
 static struct kprobe kp;
 
-// Pre-handler for the probe
 static int handler_pre(struct kprobe *p, struct pt_regs *regs) {
-    unsigned int fd = regs->di;                  // File descriptor
-    const char __user *buf = (const char __user *)regs->si; // Buffer pointer
-    size_t count = regs->dx;             // Number of bytes to write
-    char data[5];                        // Local buffer for the first 5 bytes
+    // Extract the arguments from the registers
+    // 1 - di, 2 - si, 3 - dx
+    unsigned int fd = regs->di;
+    const char *buf = (const char __user *)regs->si;
+    size_t count = regs->dx;
 
-    // Check if there are at least 5 bytes to read, otherwise adjust
+    // service variables
+    char data[5];
     size_t bytes_to_copy = (count < 5) ? count : 5;
 
-    // Copy the first 5 bytes from the user-space buffer
-    if (copy_from_user(data, buf, bytes_to_copy) == 0) {
-        // Print each byte in hex format
-        printk(KERN_INFO "Write syscall - FD: %d, Data (hex): %*ph, count: %lu\n",
+    if (copy_from_user(data, buf, bytes_to_copy) == 0)
+        printk(KERN_INFO "Write syscall - FD: %x, Data (hex): %*ph, count: %lx\n",
                fd, (int)bytes_to_copy, data, count);
-    } else {
-        printk(KERN_INFO "Write syscall - FD: %d, Failed to read buffer, count: %lu\n",
+    else
+        printk(KERN_INFO "Write syscall - FD: %x, Failed to read buffer, count: %lx\n",
                fd, count);
-    }
 
     return 0;
 }
 
-// Module initialization function
 static int __init my_kprobe_init(void) {
     int ret;
 
-    // Set the address to hook; use `__x64_sys_write` for x86_64 architecture
     kp.symbol_name = "__x64_sys_write";
     kp.pre_handler = handler_pre;
 
-    // Register the Kprobe
     ret = register_kprobe(&kp);
     if (ret < 0) {
         printk(KERN_INFO "Failed to register kprobe: %d\n", ret);
@@ -50,11 +45,10 @@ static int __init my_kprobe_init(void) {
     return 0;
 }
 
-// Module cleanup function
 static void __exit my_kprobe_exit(void) {
     unregister_kprobe(&kp);
     printk(KERN_INFO "Kprobe unregistered\n");
 }
 
-module_init(my_kprobe_init);
-module_exit(my_kprobe_exit);
+module_init(my_kprobe_init)
+module_exit(my_kprobe_exit)
