@@ -8,9 +8,21 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("max.orel.site@yandex.kz");
 MODULE_DESCRIPTION("Kprobe example to track 'write' syscall");
 
-#define COPY_BUF_SIZE 5
+#define COPY_BUF_SIZE 40
 
 static struct kprobe kp;
+
+static int copy_middle(char *to, const char *from, size_t count) {
+    if (count == 0)
+        return 0;
+
+    size_t write_count = count > COPY_BUF_SIZE ? COPY_BUF_SIZE : count;
+    size_t start_pos = (count - write_count) / 2;
+    if (copy_from_user(to, from + start_pos, write_count))
+        return 0;
+
+    return (int)write_count;
+}
 
 static int handler_pre(struct kprobe *p, struct pt_regs *regs) {
     /* due to we handle 'vfs_write', not a 'write' syscall
@@ -25,14 +37,18 @@ static int handler_pre(struct kprobe *p, struct pt_regs *regs) {
 
     // buf to copy from userspace
     char kbuf[COPY_BUF_SIZE];
-    // buf for filename (max 255 bytes)
     char filename[PATH_MAX];
     char *path;
-    // real bytes count to write
-    int real_count = count < COPY_BUF_SIZE ? (int)count : COPY_BUF_SIZE;
+    int write_count;
+    loff_t file_size;
 
     // we want work only with writes on real files
     if (!(file && S_ISREG(file->f_inode->i_mode)))
+        return 0;
+
+    // check if we have append (pos == file_size)
+    file_size = file->f_inode->i_size;
+    if (file_size != 0 && *pos == file_size)
         return 0;
 
     // extract filename from 'struct file'
@@ -44,9 +60,8 @@ static int handler_pre(struct kprobe *p, struct pt_regs *regs) {
         strstr(path, "/run"))
         return 0;
 
-    // copy buffer from userspace
-    if (copy_from_user(kbuf, buf, real_count) == 0)
-        printk(KERN_INFO "Written file: %s, data: %*ph, count: %lu, pos: %llu\n", path, real_count, kbuf, count, *pos);
+    if ((write_count = copy_middle(kbuf, buf, count)))
+        printk(KERN_INFO "Written file: %s, data: %*ph\n", path, write_count, kbuf);
 
     return 0;
 }
