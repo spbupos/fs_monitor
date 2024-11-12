@@ -10,15 +10,16 @@ MODULE_DESCRIPTION("Kprobe example to track 'write' syscall");
 
 static struct kprobe kp;
 
-static int handler(struct kprobe *p, struct pt_regs *regs) {
-    /* I don't know why, but on my machine, instead of
-     * di, si and dx registers for parameters there're
-     * r10, r9 and r8. So I'm using them instead. Seems
-     * like 'struct pt_regs' is "reversed" in memory. */
-     
-    unsigned int fd = regs->r10;
-    const char *buf = (const char *)regs->r9;
-    size_t count = regs->r8;
+struct three_arg {
+    unsigned long arg1;
+    unsigned long arg2;
+    unsigned long arg3;
+};
+
+static int handler(struct kprobe *p, struct three_arg args) {
+    unsigned int fd = args.arg1;
+    const char *buf = (const char *)args.arg2;
+    size_t count = args.arg3;
 
     // service variables
     char data[5], path_buf[256];
@@ -53,7 +54,23 @@ static int handler_pre(struct kprobe *p, struct pt_regs *regs) {
            regs->r8, regs->r9, regs->r10, regs->r11);
     printk(KERN_INFO "R12: %lx, R13: %lx, R14: %lx, R15: %lx\n",
            regs->r12, regs->r13, regs->r14, regs->r15);*/
-    return handler(p, regs);
+
+    /* WARNING: on some x86_64 machines registers are reversed
+     * so it can be di-si-dx, but may be, unexpectedly, r10-r9-r8
+     * so we'll check if first args is really file descriptor (< 1024)
+     * and if it is, we'll assume that it's our registers */
+    struct three_arg args;
+    if (regs->di < 1024) {
+        args.arg1 = regs->di;
+        args.arg2 = regs->si;
+        args.arg3 = regs->dx;
+    } else if (regs->r10 < 1024) {
+        args.arg1 = regs->r10;
+        args.arg2 = regs->r8;
+        args.arg3 = regs->r9;
+    } else // sometimes we have invalid syscall
+        return 0;
+    return handler(p, args);
 }
 
 
