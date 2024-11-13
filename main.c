@@ -72,7 +72,7 @@ static int do_unlinkat_trace(struct kprobe *p, struct pt_regs *regs) {
     int type, ret;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
-    r = sprintf(absolute_path, "%s/%.*s", "<unsupported>", last.len, last.name);
+    r = sprintf(absolute_path, "%s", name->name);
 #else
     ret = vfs_path_parent_lookup(name, 0, &parent, &last, &type, NULL);
     if (ret < 0 || is_service_fs_dentry(parent.dentry))
