@@ -6,8 +6,10 @@
 #include <linux/proc_fs.h>
 
 #define COPY_BUF_SIZE 40
+#define BASE64_ENCODED_MAX 60
 #define ENTRY_SIZE 512
 #define BUFFER_SIZE 262144
+#define MAX_PATH_LEN 256
 
 struct ring_buffer {
     char *data;

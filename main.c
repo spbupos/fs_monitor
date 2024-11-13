@@ -1,6 +1,7 @@
 #include <linux/kprobes.h>
 #include <linux/printk.h>
 #include <linux/file.h>
+#include <linux/base64.h>
 #include "header.h"
 
 MODULE_LICENSE("GPL");
@@ -23,7 +24,7 @@ static int copy_middle(char *to, const char *from, size_t count) {
     return (int)write_count;
 }
 
-static int handler_pre(struct kprobe *p, struct pt_regs *regs) {
+static int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
     /* due to we handle 'vfs_write', not a 'write' syscall
      * we have data in normal registers (RDI, RSI, RDX)
      * not in strange reversed order (R10, R9, R8) */
@@ -34,9 +35,12 @@ static int handler_pre(struct kprobe *p, struct pt_regs *regs) {
     size_t count = (size_t)regs->dx;
     loff_t *ppos = (loff_t *)regs->cx;
 
-    // buf to copy from userspace
-    char kbuf[COPY_BUF_SIZE], filename[PATH_MAX], *path, entry[ENTRY_SIZE];
-    int write_count;
+    // some buffers
+    char kbuf[COPY_BUF_SIZE],
+         filename[MAX_PATH_LEN],
+         base64_encoded[BASE64_ENCODED_MAX],
+         entry[ENTRY_SIZE], *path;
+    int write_count, r;
     loff_t file_size, pos = *ppos;
 
     // we want work only with writes on real files
@@ -49,7 +53,7 @@ static int handler_pre(struct kprobe *p, struct pt_regs *regs) {
         return 0;
 
     // extract filename from 'struct file'
-    path = d_path(&file->f_path, filename, PATH_MAX);
+    path = d_path(&file->f_path, filename, MAX_PATH_LEN);
     if (strstr(path, "/proc") ||
         strstr(path, "/sys") ||
         strstr(path, "/dev") ||
@@ -57,10 +61,11 @@ static int handler_pre(struct kprobe *p, struct pt_regs *regs) {
         strstr(path, "/run"))
         return 0;
 
-    if ((write_count = copy_middle(kbuf, buf, count))) {
-        sprintf(entry, "Written file: %s, data: %*ph\n", path, write_count, kbuf);
-        ring_buffer_append(&rbuf, entry, strlen(entry));
-    }
+    write_count = copy_middle(kbuf, buf, count);
+    r = base64_encode(kbuf, write_count, base64_encoded);
+    base64_encoded[r] = '\0';
+    sprintf(entry, ":%s:%s:\n", path, base64_encoded);
+    ring_buffer_append(&rbuf, entry, strlen(entry));
 
     return 0;
 }
@@ -74,10 +79,10 @@ static int __init my_kprobe_init(void) {
         return -ENOMEM;
     ring_buffer_init(&rbuf);
 
-    proc_entry = proc_create("my_proc", 0444, NULL, &proc_fops);
+    proc_entry = proc_create("fs_notifier", 0444, NULL, &proc_fops);
 
     kp.symbol_name = "vfs_write";
-    kp.pre_handler = handler_pre;
+    kp.pre_handler = vfs_write_trace;
 
     ret = register_kprobe(&kp);
     if (ret < 0) {

@@ -42,6 +42,7 @@ ssize_t proc_read(struct file *file, char __user *buffer, size_t count, loff_t *
         return -EFAULT;
 
     *pos = rbuf.size;
+    kfree(out_buffer);
     return rbuf.size;
 }
 EXPORT_SYMBOL(proc_read);
