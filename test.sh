@@ -1,9 +1,9 @@
 #!/bin/sh
 
-sudo rmmod hello
+sudo rmmod fs_monitor
 make clean
 make
-sudo insmod hello.ko
+sudo insmod fs_monitor.ko
 make clean
 
 exit 0
