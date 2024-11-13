@@ -52,8 +52,6 @@ static int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
     return 0;
 }
 
-/* Combine strings s1 and s2 to "'\0's1'\0's2'\0'" */
-
 static int do_unlinkat_trace(struct kprobe *p, struct pt_regs *regs) {
     /* taken from declaration of 'do_unlinkat' function
      * int do_unlinkat(int dfd, struct filename *name)
