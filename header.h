@@ -4,6 +4,7 @@
 #include <linux/module.h>
 #include <linux/uaccess.h>
 #include <linux/proc_fs.h>
+#include <linux/version.h>
 
 #define KPROBES_COUNT 2
 
@@ -12,6 +13,13 @@
 #define ENTRY_SIZE 512
 #define BUFFER_SIZE 262144
 #define MAX_PATH_LEN 256
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
+#define BASE64_CHARS(nbytes)   DIV_ROUND_UP((nbytes) * 4, 3)
+
+int base64_encode(const u8 *src, int len, char *dst);
+int base64_decode(const char *src, int len, u8 *dst);
+#endif
 
 static struct kprobe *kp[KPROBES_COUNT];
 

@@ -1,8 +1,13 @@
 #include <linux/kprobes.h>
 #include <linux/printk.h>
 #include <linux/file.h>
-#include <linux/base64.h>
+#include <linux/version.h>
 #include <linux/namei.h>
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(6, 0, 0)
+#include <linux/base64.h>
+#endif
+
 #include "header.h"
 
 /* in x86_64 registers is used for arguments passing: rdi, rsi, rdx, rcx
