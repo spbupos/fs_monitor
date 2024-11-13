@@ -3,6 +3,7 @@
 #include <linux/file.h>
 #include <linux/version.h>
 #include <linux/namei.h>
+#include <linux/slab.h>
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(6, 0, 0)
 #include <linux/base64.h>
@@ -70,12 +71,15 @@ static int do_unlinkat_trace(struct kprobe *p, struct pt_regs *regs) {
     struct qstr last;
     int type, ret;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
+    r = sprintf(absolute_path, "%s/%.*s", "<unsupported>", last.len, last.name);
+#else
     ret = vfs_path_parent_lookup(name, 0, &parent, &last, &type, NULL);
     if (ret < 0 || is_service_fs_dentry(parent.dentry))
         return 0;
-
     parent_path = d_path(&parent, filename, MAX_PATH_LEN);
     r = sprintf(absolute_path, "%s/%.*s", parent_path, last.len, last.name);
+#endif
 
     r = entry_combiner(entry, absolute_path, r, "<deleted>", 9);
     ring_buffer_append(&rbuf, entry, r);
