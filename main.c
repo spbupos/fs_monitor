@@ -153,6 +153,11 @@ static int __init my_kprobe_init(void) {
         kfree(rbuf.data);
         return ret;
     }
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
+    printk(KERN_INFO "NOTICE: resolving absolute paths directly from 'struct filename' "
+                     "is not supported for kernels older than 6.4.0, so on deletion if "
+                     "it was relative, you won't see real path\n");
+#endif
 
     return 0;
 }
