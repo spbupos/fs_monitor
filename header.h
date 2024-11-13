@@ -34,7 +34,7 @@ ssize_t proc_read(struct file *file, char __user *buffer, size_t count, loff_t *
 static const struct proc_ops proc_fops = {
     .proc_read = proc_read,
 };
-static struct proc_dir_entry *proc_entry;
+static struct proc_dir_entry *proc_entry, *proc_parent_entry;
 
 size_t entry_combiner(char *entry,
                       const char *s1, size_t s1_len,

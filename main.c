@@ -106,7 +106,17 @@ static int __init my_kprobe_init(void) {
         return -ENOMEM;
     ring_buffer_init(&rbuf);
 
-    proc_entry = proc_create("fs_notifier", 0444, NULL, &proc_fops);
+    proc_parent_entry = proc_mkdir("fs_monitor", NULL);
+    if (!proc_parent_entry) {
+        kfree(rbuf.data);
+        return -ENOMEM;
+    }
+    proc_entry = proc_create("extended_journal", 0444, proc_parent_entry, &proc_fops);
+    if (!proc_entry) {
+        proc_remove(proc_parent_entry);
+        kfree(rbuf.data);
+        return -ENOMEM;
+    }
 
     // alloc kprobes
     for (i = 0; i < KPROBES_COUNT; i++) {
@@ -115,6 +125,7 @@ static int __init my_kprobe_init(void) {
             for (int j = 0; j < i; j++)
                 kfree(kp[j]);
             proc_remove(proc_entry);
+            proc_remove(proc_parent_entry);
             kfree(rbuf.data);
             return -ENOMEM;
         }
@@ -140,6 +151,7 @@ static int __init my_kprobe_init(void) {
 static void __exit my_kprobe_exit(void) {
     unregister_kprobes(kp, KPROBES_COUNT);
     proc_remove(proc_entry);
+    proc_remove(proc_parent_entry);
     kfree(rbuf.data);
     for (int i = 0; i < KPROBES_COUNT; i++)
         kfree(kp[i]);
