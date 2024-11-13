@@ -11,7 +11,8 @@ void ring_buffer_init(struct ring_buffer *buffer) {
 EXPORT_SYMBOL(ring_buffer_init);
 
 void ring_buffer_append(struct ring_buffer *buffer, const char *values, size_t length) {
-    for (size_t i = 0; i < length; i++) {
+    size_t i;
+    for (i = 0; i < length; i++) {
         if (buffer->size < BUFFER_SIZE) {
             buffer->data[buffer->tail] = values[i];
             buffer->tail = (buffer->tail + 1) % BUFFER_SIZE;
@@ -26,8 +27,8 @@ void ring_buffer_append(struct ring_buffer *buffer, const char *values, size_t l
 EXPORT_SYMBOL(ring_buffer_append);
 
 void ring_buffer_read(struct ring_buffer *buffer, char *output) {
-    size_t idx = buffer->head;
-    for (size_t i = 0; i < buffer->size; i++) {
+    size_t idx = buffer->head, i;
+    for (i = 0; i < buffer->size; i++) {
         output[i] = buffer->data[idx];
         idx = (idx + 1) % BUFFER_SIZE;
     }
