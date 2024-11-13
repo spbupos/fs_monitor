@@ -125,7 +125,9 @@ static int __init my_kprobe_init(void) {
     for (i = 0; i < KPROBES_COUNT; i++) {
         kp[i] = kmalloc(sizeof(struct kprobe), GFP_KERNEL);
         if (!kp[i]) {
-            for (int j = 0; j < i; j++)
+            int j;
+
+            for (j = 0; j < i; j++)
                 kfree(kp[j]);
             proc_remove(proc_entry);
             proc_remove(proc_parent_entry);
@@ -152,11 +154,13 @@ static int __init my_kprobe_init(void) {
 }
 
 static void __exit my_kprobe_exit(void) {
+    int i;
+
     unregister_kprobes(kp, KPROBES_COUNT);
     proc_remove(proc_entry);
     proc_remove(proc_parent_entry);
     kfree(rbuf.data);
-    for (int i = 0; i < KPROBES_COUNT; i++)
+    for (i = 0; i < KPROBES_COUNT; i++)
         kfree(kp[i]);
 }
 
