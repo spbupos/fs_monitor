@@ -10,7 +10,7 @@ add_definitions(-D__KERNEL__ -DMODULE)
 
 add_executable(fs_journaler
         main.c
-        ring_buffer.c
+        service.c
         header.h
 )
 

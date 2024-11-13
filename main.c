@@ -4,62 +4,14 @@
 #include <linux/base64.h>
 #include "header.h"
 
-MODULE_LICENSE("GPL");
-MODULE_AUTHOR("max.orel.site@yandex.kz");
-MODULE_DESCRIPTION("Kprobe example to track 'write' syscall");
-
-static struct kprobe kp;
-struct ring_buffer rbuf;
-static struct proc_dir_entry *proc_entry;
-
-static struct file_system_type *proc_fs, *sysfs_fs, *devtmpfs_fs, *tmpfs_fs, *ramfs_fs;
-
-static int init_filesystem_pointers(void) {
-    proc_fs = get_fs_type("proc");
-    sysfs_fs = get_fs_type("sysfs");
-    devtmpfs_fs = get_fs_type("devtmpfs");
-    tmpfs_fs = get_fs_type("tmpfs");
-    ramfs_fs = get_fs_type("ramfs");
-
-    if (!proc_fs || !sysfs_fs || !devtmpfs_fs || !tmpfs_fs || !ramfs_fs) {
-        pr_err("Error initializing filesystem pointers\n");
-        return -ENODEV;
-    }
-
-    return 0;
-}
-
-static int is_service_fs(struct file *file) {
-    struct super_block *sb = file->f_path.dentry->d_sb;
-
-    if (sb->s_type == proc_fs ||
-        sb->s_type == sysfs_fs ||
-        sb->s_type == devtmpfs_fs ||
-        sb->s_type == tmpfs_fs ||
-        sb->s_type == ramfs_fs)
-        return 1;
-
-    return 0;
-}
-
-static int copy_middle(char *to, const char *from, size_t count) {
-    if (count == 0)
-        return 0;
-
-    size_t write_count = count > COPY_BUF_SIZE ? COPY_BUF_SIZE : count;
-    size_t start_pos = (count - write_count) / 2;
-    if (copy_from_user(to, from + start_pos, write_count))
-        return 0;
-
-    return (int)write_count;
-}
+/* in x86_64 registers is used for arguments passing: rdi, rsi, rdx, rcx
+ * WARNING: in some cases can be transformed to r10, r9, r8, rdx
+ */
 
 static int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
-    /* due to we handle 'vfs_write', not a 'write' syscall
-     * we have data in normal registers (RDI, RSI, RDX)
-     * not in strange reversed order (R10, R9, R8) */
-
-    // taken from declaration of 'vfs_write' function
+    /* taken from declaration of 'vfs_write' function
+     * ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_t *pos)
+     */
     struct file *file = (struct file *)regs->di;
     const char *buf = (const char *)regs->si;
     size_t count = (size_t)regs->dx;
@@ -105,9 +57,26 @@ static int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
     return 0;
 }
 
+static int do_unlinkat_trace(struct kprobe *p, struct pt_regs *regs) {
+    return 0;
+}
+
+ssize_t proc_read(struct file *file, char __user *buffer, size_t count, loff_t *pos) {
+    char *out_buffer = kmalloc(BUFFER_SIZE + 1, GFP_KERNEL);
+    if (*pos > 0)
+        return 0;
+
+    ring_buffer_read(&rbuf, out_buffer);
+    if (copy_to_user(buffer, out_buffer, rbuf.size))
+        return -EFAULT;
+
+    *pos = rbuf.size;
+    kfree(out_buffer);
+    return rbuf.size;
+}
 
 static int __init my_kprobe_init(void) {
-    int ret;
+    int ret, i;
 
     ret = init_filesystem_pointers();
     if (ret < 0)
@@ -120,10 +89,25 @@ static int __init my_kprobe_init(void) {
 
     proc_entry = proc_create("fs_notifier", 0444, NULL, &proc_fops);
 
-    kp.symbol_name = "vfs_write";
-    kp.pre_handler = vfs_write_trace;
+    // alloc kprobes
+    for (i = 0; i < KPROBES_COUNT; i++) {
+        kp[i] = kmalloc(sizeof(struct kprobe), GFP_KERNEL);
+        if (!kp[i]) {
+            for (int j = 0; j < i; j++)
+                kfree(kp[j]);
+            proc_remove(proc_entry);
+            kfree(rbuf.data);
+            return -ENOMEM;
+        }
+    }
 
-    ret = register_kprobe(&kp);
+    // NOTICE: all 'struct kprobe' must be fulfiled with, at least, symbol_name and pre_handler
+    kp[0]->symbol_name = "vfs_write";
+    kp[0]->pre_handler = vfs_write_trace;
+    kp[1]->symbol_name = "do_unlinkat";
+    kp[1]->pre_handler = do_unlinkat_trace;
+
+    ret = register_kprobes(kp, KPROBES_COUNT);
     if (ret < 0) {
         printk(KERN_INFO "Failed to register kprobe: %d\n", ret);
         proc_remove(proc_entry);
@@ -135,10 +119,16 @@ static int __init my_kprobe_init(void) {
 }
 
 static void __exit my_kprobe_exit(void) {
-    unregister_kprobe(&kp);
+    unregister_kprobes(kp, KPROBES_COUNT);
     proc_remove(proc_entry);
     kfree(rbuf.data);
+    for (int i = 0; i < KPROBES_COUNT; i++)
+        kfree(kp[i]);
 }
 
 module_init(my_kprobe_init)
 module_exit(my_kprobe_exit)
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("max.orel.site@yandex.kz");
+MODULE_DESCRIPTION("Kprobe example to track 'write' syscall");
