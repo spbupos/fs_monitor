@@ -2,6 +2,7 @@
 #include <linux/printk.h>
 #include <linux/file.h>
 #include <linux/base64.h>
+#include <linux/namei.h>
 #include "header.h"
 
 /* in x86_64 registers is used for arguments passing: rdi, rsi, rdx, rcx
@@ -23,8 +24,8 @@ static int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
          base64_encoded[BASE64_ENCODED_MAX],
          entry[ENTRY_SIZE], *path;
 
-    int write_count, r;
-    size_t path_len;
+    int write_count;
+    size_t r;
     loff_t file_size, pos = *ppos;
 
     // we want work only with writes on real files
@@ -43,21 +44,39 @@ static int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
     r = base64_encode(kbuf, write_count, base64_encoded);
     base64_encoded[r] = '\0';
 
-    // build entry with '\0's as separators
-    entry[0] = '\0';
+    // finally we can build entry
     path = d_path(&file->f_path, filename, MAX_PATH_LEN);
-    sprintf(entry + 1, "%s", path);
-    path_len = strlen(path);
-    entry[path_len + 1] = '\0';
-    sprintf(entry + path_len + 2, "%s", base64_encoded);
-    entry[path_len + r + 2] = '\0';
-    entry[path_len + r + 3] = '\n';
+    r = entry_combiner(entry, path, strlen(path), base64_encoded, r);
+    ring_buffer_append(&rbuf, entry, r);
 
-    ring_buffer_append(&rbuf, entry, path_len + r + 4);
     return 0;
 }
 
+/* Combine strings s1 and s2 to "'\0's1'\0's2'\0'" */
+
 static int do_unlinkat_trace(struct kprobe *p, struct pt_regs *regs) {
+    /* taken from declaration of 'do_unlinkat' function
+     * int do_unlinkat(int dfd, struct filename *name)
+     */
+    struct filename *name = (struct filename *)regs->si;
+    char entry[ENTRY_SIZE], filename[MAX_PATH_LEN];
+    char *parent_path, absolute_path[MAX_PATH_LEN];
+    size_t r;
+
+    struct path parent;
+    struct qstr last;
+    int type, ret;
+
+    ret = vfs_path_parent_lookup(name, 0, &parent, &last, &type, NULL);
+    if (ret < 0 || is_service_fs_dentry(parent.dentry))
+        return 0;
+
+    parent_path = d_path(&parent, filename, MAX_PATH_LEN);
+    r = sprintf(absolute_path, "%s/%.*s", parent_path, last.len, last.name);
+
+    r = entry_combiner(entry, absolute_path, r, "<deleted>", 9);
+    ring_buffer_append(&rbuf, entry, r);
+
     return 0;
 }
 
@@ -131,4 +150,4 @@ module_exit(my_kprobe_exit)
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("max.orel.site@yandex.kz");
-MODULE_DESCRIPTION("Kprobe example to track 'write' syscall");
+MODULE_DESCRIPTION("Monitor modifications in filesystems");

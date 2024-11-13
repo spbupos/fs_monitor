@@ -51,8 +51,8 @@ int init_filesystem_pointers(void) {
 }
 EXPORT_SYMBOL(init_filesystem_pointers);
 
-int is_service_fs(struct file *file) {
-    struct super_block *sb = file->f_path.dentry->d_sb;
+int is_service_fs_dentry(struct dentry *dentry) {
+    struct super_block *sb = dentry->d_sb;
 
     if (sb->s_type == proc_fs ||
         sb->s_type == sysfs_fs ||
@@ -63,8 +63,14 @@ int is_service_fs(struct file *file) {
 
     return 0;
 }
+EXPORT_SYMBOL(is_service_fs_dentry);
+
+int is_service_fs(struct file *file) {
+    return is_service_fs_dentry(file->f_path.dentry);
+}
 EXPORT_SYMBOL(is_service_fs);
 
+// copy 40 bytes from the middle of 'from' to 'to'
 int copy_middle(char *to, const char *from, size_t count) {
     if (count == 0)
         return 0;
@@ -77,3 +83,17 @@ int copy_middle(char *to, const char *from, size_t count) {
     return (int)write_count;
 }
 EXPORT_SYMBOL(copy_middle);
+
+// build entry with '\0's as separators
+size_t entry_combiner(char *entry,
+                      const char *s1, size_t s1_len,
+                      const char *s2, size_t s2_len) {
+    entry[0] = '\0';
+    sprintf(entry + 1, "%s", s1);
+    entry[s1_len + 1] = '\0';
+    sprintf(entry + s1_len + 2, "%s", s2);
+    entry[s1_len + s2_len + 2] = '\0';
+    entry[s1_len + s2_len + 3] = '\n';
+    return s1_len + s2_len + 4;
+}
+EXPORT_SYMBOL(entry_combiner);

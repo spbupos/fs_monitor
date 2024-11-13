@@ -16,6 +16,7 @@
 static struct kprobe *kp[KPROBES_COUNT];
 
 int init_filesystem_pointers(void);
+int is_service_fs_dentry(struct dentry *dentry);
 int is_service_fs(struct file *file);
 int copy_middle(char *to, const char *from, size_t count);
 
@@ -34,5 +35,9 @@ static const struct proc_ops proc_fops = {
     .proc_read = proc_read,
 };
 static struct proc_dir_entry *proc_entry;
+
+size_t entry_combiner(char *entry,
+                      const char *s1, size_t s1_len,
+                      const char *s2, size_t s2_len);
 
 #endif // VARS_H
