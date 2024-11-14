@@ -4,6 +4,8 @@
 #include <linux/base64.h>
 #endif
 
+int data_available = 0;
+
 /* in x86_64 registers is used for arguments passing: rdi, rsi, rdx, rcx
  * WARNING: in some cases can be transformed to r10, r9, r8, rdx
  */
@@ -65,9 +67,12 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
     /* write entry to ring buffer */
     r = entry_combiner(entry, (const char **)to_be_entry, ENTRY_WRITE_LENGTH);
     ring_buffer_append_both(entry, r);
+    data_available = 1;
 
     /* cleanup */
     free_ptr_array((void **)to_be_entry, ENTRY_WRITE_LENGTH);
+    wake_up_interruptible(&wait_queue);
+
     return 0;
 }
 EXPORT_SYMBOL(vfs_write_trace);
@@ -112,9 +117,12 @@ int do_unlinkat_trace(struct kprobe *p, struct pt_regs *regs) {
     /* write entry to ring buffer */
     r = entry_combiner(entry, (const char **)to_be_entry, ENTRY_DELETE_LENGTH);
     ring_buffer_append_both(entry, r);
+    data_available = 1;
 
     /* cleanup */
     free_ptr_array((void **)to_be_entry, ENTRY_DELETE_LENGTH);
+    wake_up_interruptible(&wait_queue);
+
     return 0;
 }
 EXPORT_SYMBOL(do_unlinkat_trace);

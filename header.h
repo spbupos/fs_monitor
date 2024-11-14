@@ -73,4 +73,11 @@ void free_ptr_array(void **ptr_array, size_t count);
 int vfs_write_trace(struct kprobe *p, struct pt_regs *regs);
 int do_unlinkat_trace(struct kprobe *p, struct pt_regs *regs);
 
+extern int data_available;
+
+
+/* poll */
+extern struct wait_queue_head wait_queue;
+extern unsigned long last_poll_time;
+
 #endif // VARS_H

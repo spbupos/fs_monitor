@@ -1,6 +1,8 @@
 #include <linux/kprobes.h>
 #include <linux/printk.h>
 #include <linux/file.h>
+#include <linux/poll.h>
+#include <linux/jiffies.h>
 #include "header.h"
 
 /* define cross-file variables */
@@ -8,22 +10,59 @@ struct proc_dir_entry *proc_entry, *proc_parent_entry;
 struct ring_buffer *rbuf_read, *rbuf_poll;
 struct kprobe **kp;
 
+/* for poll */
+DECLARE_WAIT_QUEUE_HEAD(wait_queue);
+unsigned long last_poll_time = 0;
+
 ssize_t proc_read(struct file *file, char __user *buffer, size_t count, loff_t *pos) {
     char *out_buffer = kmalloc(BUFFER_SIZE, GFP_KERNEL);
+    ssize_t ret;
+
     if (*pos > 0)
         return 0;
 
-    ring_buffer_read(rbuf_read, out_buffer);
-    if (copy_to_user(buffer, out_buffer, rbuf_read->size))
-        return -EFAULT;
+    if (last_poll_time && time_after(jiffies, last_poll_time)) {
+        ring_buffer_read(rbuf_poll, out_buffer);
+        if (copy_to_user(buffer, out_buffer, rbuf_poll->size)) {
+            ret = -EFAULT;
+            goto exit;
+        }
+        ret = (ssize_t)rbuf_poll->size;
+        *pos = (loff_t)rbuf_read->size;
 
-    *pos = (loff_t)rbuf_read->size;
+        last_poll_time = 0;
+        data_available = 0;
+        ring_buffer_clear(rbuf_poll);
+    } else {
+        ring_buffer_read(rbuf_read, out_buffer);
+        if (copy_to_user(buffer, out_buffer, rbuf_read->size)) {
+            ret = -EFAULT;
+            goto exit;
+        }
+        ret = (ssize_t)rbuf_read->size;
+        *pos = (loff_t)rbuf_read->size;
+    }
+
+exit:
     kfree(out_buffer);
-    return (ssize_t)rbuf_read->size;
+    return ret;
+}
+
+static __poll_t proc_poll(struct file *file, poll_table *wait) {
+    unsigned int mask = 0;
+
+    poll_wait(file, &wait_queue, wait);
+    if (data_available) {
+        mask |= POLLIN;
+        last_poll_time = jiffies;
+    }
+
+    return mask;
 }
 
 const struct proc_ops proc_fops = {
         .proc_read = proc_read,
+        .proc_poll = proc_poll,
 };
 
 static int __init my_kprobe_init(void) {
