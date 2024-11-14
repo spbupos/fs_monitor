@@ -82,11 +82,13 @@ EXPORT_SYMBOL(is_service_fs);
 
 // copy 40 bytes from the middle of 'from' to 'to'
 int copy_start_middle(char *to, const char *from, size_t count, int middle) {
+    size_t write_count, start_pos;
+
     if (count == 0)
         return 0;
 
-    size_t write_count = count > COPY_BUF_SIZE ? COPY_BUF_SIZE : count;
-    size_t start_pos = middle ? (count - write_count) / 2 : 0;
+    write_count = count > COPY_BUF_SIZE ? COPY_BUF_SIZE : count;
+    start_pos = middle ? (count - write_count) / 2 : 0;
     if (copy_from_user(to, from + start_pos, write_count))
         return 0;
 
