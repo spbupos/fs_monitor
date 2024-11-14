@@ -19,8 +19,7 @@ EXPORT_SYMBOL(ring_buffer_destroy);
 
 void ring_buffer_append(struct ring_buffer *buffer, const char *values, size_t length) {
     size_t i;
-    printk(KERN_INFO "DEBUG: data = %lx,buffer = %lx, values = %lx, length = %ld\n",
-           (unsigned long)buffer->data, (unsigned long)buffer, (unsigned long)values, length);
+
     for (i = 0; i < length; i++) {
         if (buffer->size < BUFFER_SIZE) {
             buffer->data[buffer->tail] = values[i];
