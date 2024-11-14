@@ -1,4 +1,7 @@
-obj-m += fs_monitor.o
+MODULE_NAME = fs_monitor
+MODULE_FILE := $(MODULE_NAME).ko
+
+obj-m += $(MODULE_NAME).o
 
 fs_monitor-y := main.o service.o tracers.o # and something else
 
@@ -13,8 +16,22 @@ ifeq ($(shell [ $(KERNEL_MAJOR) -lt 6 ] || ([ $(KERNEL_MAJOR) -eq 6 ] && [ $(KER
 	fs_monitor-y += base64.o
 endif
 
-all: $(BUILD_DIR_MAKEFILE)
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+all:
+	@make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+
+install: $(MODULE_FILE)
+	install -p -m 644 $(MODULE_FILE) /lib/modules/$(shell uname -r)/kernel/fs/
+	@depmod -a
+
+$(MODULE_FILE):
+	@echo "Please run 'make' first"
+	@false
+
+uninstall:
+	rm -f /lib/modules/$(shell uname -r)/kernel/fs/$(MODULE_FILE)
+	@depmod -a
 
 clean:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	@make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+
+.PHONY: all install uninstall clean
