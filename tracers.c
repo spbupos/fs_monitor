@@ -4,7 +4,8 @@
 #include <linux/base64.h>
 #endif
 
-int data_available = 0;
+bool data_available = false;
+char monitor_entry[ENTRY_SIZE];
 
 /* in x86_64 registers is used for arguments passing: rdi, rsi, rdx, rcx
  * WARNING: in some cases can be transformed to r10, r9, r8, rdx
@@ -20,8 +21,8 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
 
     /* some buffers */
     char kbuf[COPY_BUF_SIZE],
-            filename[MAX_PATH_LEN],
-            entry[ENTRY_SIZE], *path;
+         filename[MAX_PATH_LEN],
+         *path;
 
     int write_count;
     size_t r;
@@ -34,6 +35,9 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
         return 0;
 
     to_be_entry = kmalloc(ENTRY_WRITE_LENGTH * sizeof(char *), GFP_KERNEL);
+
+    /* clean up global entry by memset */
+    memset(monitor_entry, 0, ENTRY_SIZE);
 
     /* timestamp */
     to_be_entry[0] = kmalloc(SPEC_STRINGS_SIZE, GFP_KERNEL);
@@ -65,13 +69,15 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
     to_be_entry[4][r] = '\0';
 
     /* write entry to ring buffer */
-    r = entry_combiner(entry, (const char **)to_be_entry, ENTRY_WRITE_LENGTH);
-    ring_buffer_append_both(entry, r);
-    data_available = 1;
+    r = entry_combiner(monitor_entry, (const char **)to_be_entry, ENTRY_WRITE_LENGTH);
+    ring_buffer_append_both(monitor_entry, r);
 
-    /* cleanup */
-    free_ptr_array((void **)to_be_entry, ENTRY_WRITE_LENGTH);
-    wake_up_interruptible(&wait_queue);
+    /* cleanup and wake up poll */
+    free_ptr_array((void **)to_be_entry, ENTRY_DELETE_LENGTH);
+    if (!data_available) {
+        data_available = true;
+        wake_up_interruptible(&wait_queue);
+    }
 
     return 0;
 }
@@ -84,7 +90,7 @@ int do_unlinkat_trace(struct kprobe *p, struct pt_regs *regs) {
     struct filename *name = (struct filename *)regs->si;
 
     /* some buffers */
-    char entry[ENTRY_SIZE], filename[MAX_PATH_LEN];
+    char filename[MAX_PATH_LEN];
     char *parent_path;
     size_t r;
 
@@ -93,6 +99,9 @@ int do_unlinkat_trace(struct kprobe *p, struct pt_regs *regs) {
     int type, ret;
 
     char **to_be_entry = kmalloc(ENTRY_DELETE_LENGTH * sizeof(char *), GFP_KERNEL);
+
+    /* clean up global entry by memset */
+    memset(monitor_entry, 0, ENTRY_SIZE);
 
     /* timestamp */
     to_be_entry[0] = kmalloc(SPEC_STRINGS_SIZE, GFP_KERNEL);
@@ -115,13 +124,15 @@ int do_unlinkat_trace(struct kprobe *p, struct pt_regs *regs) {
     sprintf(to_be_entry[2], "<deleted>");
 
     /* write entry to ring buffer */
-    r = entry_combiner(entry, (const char **)to_be_entry, ENTRY_DELETE_LENGTH);
-    ring_buffer_append_both(entry, r);
-    data_available = 1;
+    r = entry_combiner(monitor_entry, (const char **)to_be_entry, ENTRY_DELETE_LENGTH);
+    ring_buffer_append_both(monitor_entry, r);
 
-    /* cleanup */
+    /* cleanup and wake up poll */
     free_ptr_array((void **)to_be_entry, ENTRY_DELETE_LENGTH);
-    wake_up_interruptible(&wait_queue);
+    if (!data_available) {
+        data_available = true;
+        wake_up_interruptible(&wait_queue);
+    }
 
     return 0;
 }

@@ -11,53 +11,59 @@ struct ring_buffer *rbuf_read, *rbuf_poll;
 struct kprobe **kp;
 
 /* for poll */
+DEFINE_SPINLOCK(lock);
 DECLARE_WAIT_QUEUE_HEAD(wait_queue);
-unsigned long last_poll_time = 0;
+bool polled = false;
 
 ssize_t proc_read(struct file *file, char __user *buffer, size_t count, loff_t *pos) {
-    char *out_buffer = kmalloc(BUFFER_SIZE, GFP_KERNEL);
     ssize_t ret;
 
     if (*pos > 0)
         return 0;
 
-    if (last_poll_time && time_after(jiffies, last_poll_time)) {
-        ring_buffer_read(rbuf_poll, out_buffer);
-        if (copy_to_user(buffer, out_buffer, rbuf_poll->size)) {
+    if (polled) {
+        /* simply get last event from global variable event */
+        printk(KERN_INFO "DEBUG: polling\n");
+        if (copy_to_user(buffer, monitor_entry, count < ENTRY_SIZE ? count : ENTRY_SIZE)) {
             ret = -EFAULT;
             goto exit;
         }
-        ret = (ssize_t)rbuf_poll->size;
-        //*pos = (loff_t)rbuf_read->size;
 
-        last_poll_time = 0;
-        data_available = 0;
-        ring_buffer_clear(rbuf_poll);
+        ret = (ssize_t)ENTRY_SIZE;
+        *pos = (loff_t)ENTRY_SIZE;
+        polled = false;
     } else {
+        char *out_buffer = kmalloc(BUFFER_SIZE, GFP_KERNEL);
+        printk(KERN_INFO "DEBUG: reading\n");
+        if (!out_buffer) {
+            ret = -ENOMEM;
+            kfree(out_buffer);
+            goto exit;
+        }
+
         ring_buffer_read(rbuf_read, out_buffer);
-        if (copy_to_user(buffer, out_buffer, rbuf_read->size)) {
+        if (copy_to_user(buffer, out_buffer, count < rbuf_read->size ? count : rbuf_read->size)) {
+            kfree(out_buffer);
             ret = -EFAULT;
             goto exit;
         }
+
         ret = (ssize_t)rbuf_read->size;
         *pos = (loff_t)rbuf_read->size;
     }
 
 exit:
-    kfree(out_buffer);
     return ret;
 }
 
 static __poll_t proc_poll(struct file *file, poll_table *wait) {
-    unsigned int mask = 0;
-
     poll_wait(file, &wait_queue, wait);
     if (data_available) {
-        mask = EPOLLIN;
-        last_poll_time = jiffies;
+        polled = true;
+        data_available = 0;
+        return POLLIN | POLLRDNORM;
     }
-
-    return mask;
+    return 0;
 }
 
 const struct proc_ops proc_fops = {
