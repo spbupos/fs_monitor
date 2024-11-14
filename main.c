@@ -9,7 +9,7 @@ struct ring_buffer *rbuf;
 struct kprobe **kp;
 
 ssize_t proc_read(struct file *file, char __user *buffer, size_t count, loff_t *pos) {
-    char *out_buffer = kmalloc(BUFFER_SIZE + 1, GFP_KERNEL);
+    char *out_buffer = kmalloc(BUFFER_SIZE, GFP_KERNEL);
     if (*pos > 0)
         return 0;
 

@@ -21,7 +21,7 @@ extern struct kprobe **kp;
 
 
 /* ring buffer */
-#define ENTRY_SIZE 768
+#define ENTRY_SIZE 512
 #define ENTRY_WRITE_LENGTH 5
 #define ENTRY_DELETE_LENGTH 3
 #define SPEC_STRINGS_SIZE 30
@@ -39,7 +39,7 @@ void ring_buffer_append(struct ring_buffer *buffer, const char *values, size_t l
 
 
 /* proc */
-#define BUFFER_SIZE 262144
+#define BUFFER_SIZE 131072
 #define MAX_PATH_LEN 512
 
 ssize_t proc_read(struct file *file, char __user *buffer, size_t count, loff_t *pos);
