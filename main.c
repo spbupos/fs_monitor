@@ -28,7 +28,7 @@ ssize_t proc_read(struct file *file, char __user *buffer, size_t count, loff_t *
             goto exit;
         }
         ret = (ssize_t)rbuf_poll->size;
-        *pos = (loff_t)rbuf_read->size;
+        //*pos = (loff_t)rbuf_read->size;
 
         last_poll_time = 0;
         data_available = 0;
@@ -53,7 +53,7 @@ static __poll_t proc_poll(struct file *file, poll_table *wait) {
 
     poll_wait(file, &wait_queue, wait);
     if (data_available) {
-        mask |= POLLIN;
+        mask = EPOLLIN;
         last_poll_time = jiffies;
     }
 
@@ -68,15 +68,10 @@ const struct proc_ops proc_fops = {
 static int __init my_kprobe_init(void) {
     int ret, i;
 
-    ret = init_filesystem_pointers();
-    if (ret < 0)
-        return ret;
-
     rbuf_read = kmalloc(sizeof(struct ring_buffer), GFP_KERNEL);
     rbuf_poll = kmalloc(sizeof(struct ring_buffer), GFP_KERNEL);
     if (!rbuf_read || !rbuf_poll) {
-        kfree(rbuf_read);
-        kfree(rbuf_poll);
+        ring_buffer_destroy_both();
         return -ENOMEM;
     }
     ring_buffer_init_both();

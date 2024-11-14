@@ -1,7 +1,6 @@
 #include <linux/fs.h>
+#include <linux/fs_struct.h>
 #include "header.h"
-
-struct file_system_type *proc_fs, *sysfs_fs, *devtmpfs_fs, *tmpfs_fs, *ramfs_fs;
 
 void ring_buffer_init(struct ring_buffer *buffer) {
     buffer->data = kmalloc(BUFFER_SIZE, GFP_KERNEL);
@@ -68,38 +67,13 @@ void ring_buffer_read(struct ring_buffer *buffer, char *output) {
 }
 EXPORT_SYMBOL(ring_buffer_read);
 
-int init_filesystem_pointers(void) {
-    proc_fs = get_fs_type("proc");
-    sysfs_fs = get_fs_type("sysfs");
-    devtmpfs_fs = get_fs_type("devtmpfs");
-    tmpfs_fs = get_fs_type("tmpfs");
-    ramfs_fs = get_fs_type("ramfs");
-
-    if (!proc_fs || !sysfs_fs || !devtmpfs_fs || !tmpfs_fs || !ramfs_fs) {
-        pr_err("Error initializing filesystem pointers\n");
-        return -ENODEV;
-    }
-
-    return 0;
-}
-EXPORT_SYMBOL(init_filesystem_pointers);
-
-int is_service_fs_dentry(struct dentry *dentry) {
-    struct super_block *sb = dentry->d_sb;
-
-    if (sb->s_type == proc_fs ||
-        sb->s_type == sysfs_fs ||
-        sb->s_type == devtmpfs_fs ||
-        sb->s_type == tmpfs_fs ||
-        sb->s_type == ramfs_fs)
-        return 1;
-
-    return 0;
-}
-EXPORT_SYMBOL(is_service_fs_dentry);
-
-int is_service_fs(struct file *file) {
-    return is_service_fs_dentry(file->f_path.dentry);
+inline int is_service_fs(struct path *path) {
+    /* any fs without device is considered a service fs
+     * yes, we'll lose some fs like NFS or curlftpfs
+     * (and some other fuse-based which aren't 'fuseblk')
+     * but we're not interested in them
+     */
+    return !(path->mnt->mnt_sb->s_type->fs_flags & FS_REQUIRES_DEV);
 }
 EXPORT_SYMBOL(is_service_fs);
 

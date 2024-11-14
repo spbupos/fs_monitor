@@ -30,7 +30,7 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
     char **to_be_entry;
 
     /* we want work only with writes on real files on real FS */
-    if (!file || !S_ISREG(file->f_inode->i_mode) || is_service_fs(file))
+    if (!file || !S_ISREG(file->f_inode->i_mode) || is_service_fs(&file->f_path))
         return 0;
 
     to_be_entry = kmalloc(ENTRY_WRITE_LENGTH * sizeof(char *), GFP_KERNEL);
@@ -104,7 +104,7 @@ int do_unlinkat_trace(struct kprobe *p, struct pt_regs *regs) {
     sprintf(to_be_entry[1], "%s", name->name);
 #else
     ret = vfs_path_parent_lookup(name, 0, &parent, &last, &type, NULL);
-    if (ret < 0 || is_service_fs_dentry(parent.dentry))
+    if (ret < 0 || is_service_fs(&parent))
         return 0;
     parent_path = d_path(&parent, filename, MAX_PATH_LEN);
     sprintf(to_be_entry[1], "%s/%.*s", parent_path, last.len, last.name);

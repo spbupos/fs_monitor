@@ -60,9 +60,7 @@ int base64_decode(const char *src, int len, u8 *dst);
 
 
 /* service */
-int init_filesystem_pointers(void);
-int is_service_fs_dentry(struct dentry *dentry);
-int is_service_fs(struct file *file);
+int is_service_fs(struct path *path);
 
 int copy_start_middle(char *to, const char *from, size_t count, int middle);
 size_t entry_combiner(char *entry, const char **to_be_entry, size_t cnt);
