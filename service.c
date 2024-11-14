@@ -4,14 +4,23 @@
 struct file_system_type *proc_fs, *sysfs_fs, *devtmpfs_fs, *tmpfs_fs, *ramfs_fs;
 
 void ring_buffer_init(struct ring_buffer *buffer) {
+    buffer->data = kmalloc(BUFFER_SIZE, GFP_KERNEL);
     buffer->head = 0;
     buffer->tail = 0;
     buffer->size = 0;
 }
 EXPORT_SYMBOL(ring_buffer_init);
 
+void ring_buffer_destroy(struct ring_buffer *buffer) {
+    kfree(buffer->data);
+    kfree(buffer);
+}
+EXPORT_SYMBOL(ring_buffer_destroy);
+
 void ring_buffer_append(struct ring_buffer *buffer, const char *values, size_t length) {
     size_t i;
+    printk(KERN_INFO "DEBUG: data = %lx,buffer = %lx, values = %lx, length = %ld\n",
+           (unsigned long)buffer->data, (unsigned long)buffer, (unsigned long)values, length);
     for (i = 0; i < length; i++) {
         if (buffer->size < BUFFER_SIZE) {
             buffer->data[buffer->tail] = values[i];
@@ -72,29 +81,41 @@ int is_service_fs(struct file *file) {
 EXPORT_SYMBOL(is_service_fs);
 
 // copy 40 bytes from the middle of 'from' to 'to'
-int copy_middle(char *to, const char *from, size_t count) {
+int copy_start_middle(char *to, const char *from, size_t count, int middle) {
     if (count == 0)
         return 0;
 
     size_t write_count = count > COPY_BUF_SIZE ? COPY_BUF_SIZE : count;
-    size_t start_pos = (count - write_count) / 2;
+    size_t start_pos = middle ? (count - write_count) / 2 : 0;
     if (copy_from_user(to, from + start_pos, write_count))
         return 0;
 
     return (int)write_count;
 }
-EXPORT_SYMBOL(copy_middle);
+EXPORT_SYMBOL(copy_start_middle);
 
 // build entry with '\0's as separators
-size_t entry_combiner(char *entry,
-                      const char *s1, size_t s1_len,
-                      const char *s2, size_t s2_len) {
+size_t entry_combiner(char *entry, const char **to_be_entry, size_t cnt) {
+    size_t printed_len = 1;
+    int i;
+
     entry[0] = '\0';
-    sprintf(entry + 1, "%s", s1);
-    entry[s1_len + 1] = '\0';
-    sprintf(entry + s1_len + 2, "%s", s2);
-    entry[s1_len + s2_len + 2] = '\0';
-    entry[s1_len + s2_len + 3] = '\n';
-    return s1_len + s2_len + 4;
+    for (i = 0; i < cnt; i++) {
+        printed_len += sprintf(entry + printed_len, "%s", to_be_entry[i]);
+        entry[printed_len++] = '\0';
+    }
+    entry[printed_len++] = '\n';
+
+    return printed_len;
 }
 EXPORT_SYMBOL(entry_combiner);
+
+void free_ptr_array(void **ptr_array, size_t count) {
+    size_t i;
+    if (ptr_array == NULL)
+        return;
+    for (i = 0; i < count; i++)
+        kfree(ptr_array[i]);
+    kfree(ptr_array);
+}
+EXPORT_SYMBOL(free_ptr_array);

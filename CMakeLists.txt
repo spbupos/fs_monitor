@@ -12,6 +12,7 @@ add_executable(fs_monitor
         main.c
         service.c
         base64.c
+        tracers.c
         header.h
 )
 

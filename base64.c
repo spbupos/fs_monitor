@@ -53,7 +53,7 @@ int base64_encode(const u8 *src, int srclen, char *dst)
         *cp++ = '=';
         bits += 2;
     }
-    return cp - dst;
+    return (int)(cp - dst);
 }
 EXPORT_SYMBOL_GPL(base64_encode);
 
@@ -99,6 +99,6 @@ int base64_decode(const char *src, int srclen, u8 *dst)
     }
     if (ac & ((1 << bits) - 1))
         return -1;
-    return bp - dst;
+    return (int)(bp - dst);
 }
 EXPORT_SYMBOL_GPL(base64_decode);

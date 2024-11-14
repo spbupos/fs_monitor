@@ -1,6 +1,6 @@
 obj-m += fs_monitor.o
 
-fs_monitor-y := main.o service.o # and something else
+fs_monitor-y := main.o service.o tracers.o # and something else
 
 # if kernel version < 6.0, add base64.o
 KERNEL_VER := $(shell uname -r)
