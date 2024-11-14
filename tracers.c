@@ -64,7 +64,7 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
 
     /* write entry to ring buffer */
     r = entry_combiner(entry, (const char **)to_be_entry, ENTRY_WRITE_LENGTH);
-    ring_buffer_append(rbuf, entry, r);
+    ring_buffer_append_both(entry, r);
 
     /* cleanup */
     free_ptr_array((void **)to_be_entry, ENTRY_WRITE_LENGTH);
@@ -111,7 +111,7 @@ int do_unlinkat_trace(struct kprobe *p, struct pt_regs *regs) {
 
     /* write entry to ring buffer */
     r = entry_combiner(entry, (const char **)to_be_entry, ENTRY_DELETE_LENGTH);
-    ring_buffer_append(rbuf, entry, r);
+    ring_buffer_append_both(entry, r);
 
     /* cleanup */
     free_ptr_array((void **)to_be_entry, ENTRY_DELETE_LENGTH);

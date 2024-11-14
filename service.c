@@ -17,6 +17,13 @@ void ring_buffer_destroy(struct ring_buffer *buffer) {
 }
 EXPORT_SYMBOL(ring_buffer_destroy);
 
+void ring_buffer_clear(struct ring_buffer *buffer) {
+    buffer->head = 0;
+    buffer->tail = 0;
+    buffer->size = 0;
+}
+EXPORT_SYMBOL(ring_buffer_clear);
+
 void ring_buffer_append(struct ring_buffer *buffer, const char *values, size_t length) {
     size_t i;
 
@@ -33,6 +40,23 @@ void ring_buffer_append(struct ring_buffer *buffer, const char *values, size_t l
     }
 }
 EXPORT_SYMBOL(ring_buffer_append);
+
+void ring_buffer_init_both(void) {
+    ring_buffer_init(rbuf_read);
+    ring_buffer_init(rbuf_poll);
+}
+EXPORT_SYMBOL(ring_buffer_init_both);
+
+void ring_buffer_append_both(const char *values, size_t length) {
+    ring_buffer_append(rbuf_read, values, length);
+    ring_buffer_append(rbuf_poll, values, length);
+}
+EXPORT_SYMBOL(ring_buffer_append_both);
+
+void ring_buffer_destroy_both(void) {
+    ring_buffer_destroy(rbuf_read);
+    ring_buffer_destroy(rbuf_poll);
+}
 
 void ring_buffer_read(struct ring_buffer *buffer, char *output) {
     size_t idx = buffer->head, i;

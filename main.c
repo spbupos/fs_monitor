@@ -5,7 +5,7 @@
 
 /* define cross-file variables */
 struct proc_dir_entry *proc_entry, *proc_parent_entry;
-struct ring_buffer *rbuf;
+struct ring_buffer *rbuf_read, *rbuf_poll;
 struct kprobe **kp;
 
 ssize_t proc_read(struct file *file, char __user *buffer, size_t count, loff_t *pos) {
@@ -13,13 +13,13 @@ ssize_t proc_read(struct file *file, char __user *buffer, size_t count, loff_t *
     if (*pos > 0)
         return 0;
 
-    ring_buffer_read(rbuf, out_buffer);
-    if (copy_to_user(buffer, out_buffer, rbuf->size))
+    ring_buffer_read(rbuf_read, out_buffer);
+    if (copy_to_user(buffer, out_buffer, rbuf_read->size))
         return -EFAULT;
 
-    *pos = (loff_t)rbuf->size;
+    *pos = (loff_t)rbuf_read->size;
     kfree(out_buffer);
-    return (ssize_t)rbuf->size;
+    return (ssize_t)rbuf_read->size;
 }
 
 const struct proc_ops proc_fops = {
@@ -33,18 +33,24 @@ static int __init my_kprobe_init(void) {
     if (ret < 0)
         return ret;
 
-    rbuf = kmalloc(sizeof(struct ring_buffer), GFP_KERNEL);
-    ring_buffer_init(rbuf);
+    rbuf_read = kmalloc(sizeof(struct ring_buffer), GFP_KERNEL);
+    rbuf_poll = kmalloc(sizeof(struct ring_buffer), GFP_KERNEL);
+    if (!rbuf_read || !rbuf_poll) {
+        kfree(rbuf_read);
+        kfree(rbuf_poll);
+        return -ENOMEM;
+    }
+    ring_buffer_init_both();
 
     proc_parent_entry = proc_mkdir("fs_monitor", NULL);
     if (!proc_parent_entry) {
-        kfree(rbuf->data);
+        ring_buffer_destroy_both();
         return -ENOMEM;
     }
     proc_entry = proc_create("extended_journal", 0444, proc_parent_entry, &proc_fops);
     if (!proc_entry) {
         proc_remove(proc_parent_entry);
-        ring_buffer_destroy(rbuf);
+        ring_buffer_destroy_both();
         return -ENOMEM;
     }
 
@@ -56,7 +62,7 @@ static int __init my_kprobe_init(void) {
             free_ptr_array((void **)kp, i);
             proc_remove(proc_entry);
             proc_remove(proc_parent_entry);
-            ring_buffer_destroy(rbuf);
+            ring_buffer_destroy_both();
             return -ENOMEM;
         }
     }
@@ -73,7 +79,7 @@ static int __init my_kprobe_init(void) {
         free_ptr_array((void **)kp, KPROBES_COUNT);
         proc_remove(proc_entry);
         proc_remove(proc_parent_entry);
-        ring_buffer_destroy(rbuf);
+        ring_buffer_destroy_both();
         return ret;
     }
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
@@ -90,7 +96,7 @@ static void __exit my_kprobe_exit(void) {
     proc_remove(proc_entry);
     proc_remove(proc_parent_entry);
     free_ptr_array((void **)kp, KPROBES_COUNT);
-    ring_buffer_destroy(rbuf);
+    ring_buffer_destroy_both();
 }
 
 module_init(my_kprobe_init)

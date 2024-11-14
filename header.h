@@ -30,12 +30,16 @@ struct ring_buffer {
     char *data;
     size_t head, tail, size;
 };
-extern struct ring_buffer *rbuf;
+extern struct ring_buffer *rbuf_read, *rbuf_poll;
 
 void ring_buffer_init(struct ring_buffer *buffer);
 void ring_buffer_destroy(struct ring_buffer *buffer);
+void ring_buffer_clear(struct ring_buffer *buffer);
 void ring_buffer_read(struct ring_buffer *buffer, char *output);
 void ring_buffer_append(struct ring_buffer *buffer, const char *values, size_t length);
+void ring_buffer_init_both(void);
+void ring_buffer_append_both(const char *values, size_t length);
+void ring_buffer_destroy_both(void);
 
 
 /* proc */
