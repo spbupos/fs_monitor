@@ -30,24 +30,21 @@ struct ring_buffer {
     char *data;
     size_t head, tail, size;
 };
-extern struct ring_buffer *rbuf_read, *rbuf_poll;
+extern struct ring_buffer *rbuf;
 
 void ring_buffer_init(struct ring_buffer *buffer);
 void ring_buffer_destroy(struct ring_buffer *buffer);
 void ring_buffer_clear(struct ring_buffer *buffer);
 void ring_buffer_read(struct ring_buffer *buffer, char *output);
 void ring_buffer_append(struct ring_buffer *buffer, const char *values, size_t length);
-void ring_buffer_init_both(void);
-void ring_buffer_append_both(const char *values, size_t length);
-void ring_buffer_destroy_both(void);
 
 
-/* proc */
+/* chardev */
 #define BUFFER_SIZE 131072
 #define MAX_PATH_LEN 512
+#define DEVNAME "fs_monitor"
 
-ssize_t proc_read(struct file *file, char __user *buffer, size_t count, loff_t *pos);
-extern const struct proc_ops proc_fops;
+ssize_t chardev_read(struct file *file, char __user *buffer, size_t count, loff_t *pos);
 
 
 /* backward compatibility */
@@ -72,7 +69,7 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs);
 int do_unlinkat_trace(struct kprobe *p, struct pt_regs *regs);
 
 extern bool data_available;
-extern spinlock_t lock;
+//extern spinlock_t lock;
 extern char monitor_entry[ENTRY_SIZE];
 
 

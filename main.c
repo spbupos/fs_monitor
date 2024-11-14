@@ -2,20 +2,25 @@
 #include <linux/printk.h>
 #include <linux/file.h>
 #include <linux/poll.h>
-#include <linux/jiffies.h>
+#include <linux/device.h>
 #include "header.h"
 
 /* define cross-file variables */
-struct proc_dir_entry *proc_entry, *proc_parent_entry;
-struct ring_buffer *rbuf_read, *rbuf_poll;
+struct ring_buffer *rbuf;
 struct kprobe **kp;
 
 /* for poll */
-DEFINE_SPINLOCK(lock);
+//DEFINE_SPINLOCK(lock);
 DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 bool polled = false;
 
-ssize_t proc_read(struct file *file, char __user *buffer, size_t count, loff_t *pos) {
+/* for chardev */
+#define CLASS_NAME "tracer_class"
+static struct class* tracer_class = NULL;
+static struct device* tracer_device = NULL;
+static int major;
+
+ssize_t chardev_read(struct file *file, char __user *buffer, size_t count, loff_t *pos) {
     ssize_t ret;
 
     if (*pos > 0)
@@ -41,58 +46,76 @@ ssize_t proc_read(struct file *file, char __user *buffer, size_t count, loff_t *
             goto exit;
         }
 
-        ring_buffer_read(rbuf_read, out_buffer);
-        if (copy_to_user(buffer, out_buffer, count < rbuf_read->size ? count : rbuf_read->size)) {
+        ring_buffer_read(rbuf, out_buffer);
+        if (copy_to_user(buffer, out_buffer, count < rbuf->size ? count : rbuf->size)) {
             kfree(out_buffer);
             ret = -EFAULT;
             goto exit;
         }
 
-        ret = (ssize_t)rbuf_read->size;
-        *pos = (loff_t)rbuf_read->size;
+        ret = (ssize_t)rbuf->size;
+        *pos = (loff_t)rbuf->size;
     }
 
 exit:
     return ret;
 }
 
-static __poll_t proc_poll(struct file *file, poll_table *wait) {
+static __poll_t chardev_poll(struct file *file, poll_table *wait) {
     poll_wait(file, &wait_queue, wait);
     if (data_available) {
+        printk(KERN_INFO "DEBUG: poll...\n");
         polled = true;
-        data_available = 0;
+        data_available = false;
         return POLLIN | POLLRDNORM;
     }
     return 0;
 }
 
-const struct proc_ops proc_fops = {
-        .proc_read = proc_read,
-        .proc_poll = proc_poll,
+const struct file_operations chardev_fops = {
+        .read = chardev_read,
+        .poll = chardev_poll,
 };
+
+static char *tracer_devnode(const struct device *dev, umode_t *mode) {
+    if (mode)
+        *mode = 0444;
+    return NULL;
+}
 
 static int __init my_kprobe_init(void) {
     int ret, i;
 
-    rbuf_read = kmalloc(sizeof(struct ring_buffer), GFP_KERNEL);
-    rbuf_poll = kmalloc(sizeof(struct ring_buffer), GFP_KERNEL);
-    if (!rbuf_read || !rbuf_poll) {
-        ring_buffer_destroy_both();
+    rbuf = kmalloc(sizeof(struct ring_buffer), GFP_KERNEL);
+    if (!rbuf) {
         return -ENOMEM;
     }
-    ring_buffer_init_both();
+    ring_buffer_init(rbuf);
 
-    proc_parent_entry = proc_mkdir("fs_monitor", NULL);
-    if (!proc_parent_entry) {
-        ring_buffer_destroy_both();
+    major = register_chrdev(0, DEVNAME, &chardev_fops);
+    if (major < 0) {
+        ring_buffer_destroy(rbuf);
         return -ENOMEM;
     }
-    proc_entry = proc_create("extended_journal", 0444, proc_parent_entry, &proc_fops);
-    if (!proc_entry) {
-        proc_remove(proc_parent_entry);
-        ring_buffer_destroy_both();
-        return -ENOMEM;
+
+    tracer_class = class_create(CLASS_NAME);
+    if (IS_ERR(tracer_class)) {
+        unregister_chrdev(major, DEVNAME);
+        ring_buffer_destroy(rbuf);
+        pr_err("Failed to register device class\n");
+        return PTR_ERR(tracer_class);
     }
+    tracer_class->devnode = tracer_devnode;
+
+    tracer_device = device_create(tracer_class, NULL, MKDEV(major, 0), NULL, DEVNAME);
+    if (IS_ERR(tracer_device)) {
+        class_destroy(tracer_class);
+        unregister_chrdev(major, DEVNAME);
+        ring_buffer_destroy(rbuf);
+        pr_err("Failed to create the device\n");
+        return PTR_ERR(tracer_device);
+    }
+    printk(KERN_INFO "Monitor registered at /dev/%s with major number %d\n", DEVNAME, major);
 
     /* alloc kprobes */
     kp = kmalloc(KPROBES_COUNT * sizeof(struct kprobe *), GFP_KERNEL);
@@ -100,9 +123,11 @@ static int __init my_kprobe_init(void) {
         kp[i] = kmalloc(sizeof(struct kprobe), GFP_KERNEL);
         if (!kp[i]) {
             free_ptr_array((void **)kp, i);
-            proc_remove(proc_entry);
-            proc_remove(proc_parent_entry);
-            ring_buffer_destroy_both();
+            ring_buffer_destroy(rbuf);
+            device_destroy(tracer_class, MKDEV(major, 0));
+            class_unregister(tracer_class);
+            class_destroy(tracer_class);
+            unregister_chrdev(major, DEVNAME);
             return -ENOMEM;
         }
     }
@@ -117,9 +142,11 @@ static int __init my_kprobe_init(void) {
     if (ret < 0) {
         printk(KERN_INFO "Failed to register kprobe: %d\n", ret);
         free_ptr_array((void **)kp, KPROBES_COUNT);
-        proc_remove(proc_entry);
-        proc_remove(proc_parent_entry);
-        ring_buffer_destroy_both();
+        ring_buffer_destroy(rbuf);
+        device_destroy(tracer_class, MKDEV(major, 0));
+        class_unregister(tracer_class);
+        class_destroy(tracer_class);
+        unregister_chrdev(major, DEVNAME);
         return ret;
     }
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
@@ -133,10 +160,12 @@ static int __init my_kprobe_init(void) {
 
 static void __exit my_kprobe_exit(void) {
     unregister_kprobes(kp, KPROBES_COUNT);
-    proc_remove(proc_entry);
-    proc_remove(proc_parent_entry);
     free_ptr_array((void **)kp, KPROBES_COUNT);
-    ring_buffer_destroy_both();
+    ring_buffer_destroy(rbuf);
+    device_destroy(tracer_class, MKDEV(major, 0));
+    class_unregister(tracer_class);
+    class_destroy(tracer_class);
+    unregister_chrdev(major, DEVNAME);
 }
 
 module_init(my_kprobe_init)

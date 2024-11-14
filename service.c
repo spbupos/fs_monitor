@@ -40,23 +40,6 @@ void ring_buffer_append(struct ring_buffer *buffer, const char *values, size_t l
 }
 EXPORT_SYMBOL(ring_buffer_append);
 
-void ring_buffer_init_both(void) {
-    ring_buffer_init(rbuf_read);
-    ring_buffer_init(rbuf_poll);
-}
-EXPORT_SYMBOL(ring_buffer_init_both);
-
-void ring_buffer_append_both(const char *values, size_t length) {
-    ring_buffer_append(rbuf_read, values, length);
-    ring_buffer_append(rbuf_poll, values, length);
-}
-EXPORT_SYMBOL(ring_buffer_append_both);
-
-void ring_buffer_destroy_both(void) {
-    ring_buffer_destroy(rbuf_read);
-    ring_buffer_destroy(rbuf_poll);
-}
-
 void ring_buffer_read(struct ring_buffer *buffer, char *output) {
     size_t idx = buffer->head, i;
     for (i = 0; i < buffer->size; i++) {
