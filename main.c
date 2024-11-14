@@ -15,7 +15,6 @@ DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 bool polled = false;
 
 /* for chardev */
-#define CLASS_NAME "tracer_class"
 static struct class* tracer_class = NULL;
 static struct device* tracer_device = NULL;
 static int major;
@@ -28,14 +27,13 @@ ssize_t chardev_read(struct file *file, char __user *buffer, size_t count, loff_
 
     if (polled) {
         /* simply get last event from global variable event */
-        printk(KERN_INFO "DEBUG: polling\n");
         if (copy_to_user(buffer, monitor_entry, count < ENTRY_SIZE ? count : ENTRY_SIZE)) {
             ret = -EFAULT;
             goto exit;
         }
 
         ret = (ssize_t)ENTRY_SIZE;
-        *pos = (loff_t)ENTRY_SIZE;
+        *pos = 0; // drop position because polling always starts from the beginning
         polled = false;
     } else {
         char *out_buffer = kmalloc(BUFFER_SIZE, GFP_KERNEL);
@@ -79,7 +77,7 @@ const struct file_operations chardev_fops = {
 
 static char *tracer_devnode(const struct device *dev, umode_t *mode) {
     if (mode)
-        *mode = 0444;
+        *mode = DEVMODE;
     return NULL;
 }
 

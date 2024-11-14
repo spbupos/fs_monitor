@@ -42,7 +42,10 @@ void ring_buffer_append(struct ring_buffer *buffer, const char *values, size_t l
 /* chardev */
 #define BUFFER_SIZE 131072
 #define MAX_PATH_LEN 512
+
 #define DEVNAME "fs_monitor"
+#define CLASS_NAME "tracer_class"
+#define DEVMODE 0444
 
 ssize_t chardev_read(struct file *file, char __user *buffer, size_t count, loff_t *pos);
 
