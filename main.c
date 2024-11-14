@@ -37,7 +37,6 @@ ssize_t chardev_read(struct file *file, char __user *buffer, size_t count, loff_
         polled = false;
     } else {
         char *out_buffer = kmalloc(BUFFER_SIZE, GFP_KERNEL);
-        printk(KERN_INFO "DEBUG: reading\n");
         if (!out_buffer) {
             ret = -ENOMEM;
             kfree(out_buffer);
@@ -62,7 +61,6 @@ exit:
 static __poll_t chardev_poll(struct file *file, poll_table *wait) {
     poll_wait(file, &wait_queue, wait);
     if (data_available) {
-        printk(KERN_INFO "DEBUG: poll...\n");
         polled = true;
         data_available = false;
         return POLLIN | POLLRDNORM;
@@ -75,7 +73,11 @@ const struct file_operations chardev_fops = {
         .poll = chardev_poll,
 };
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
+static char *tracer_devnode(struct device *dev, umode_t *mode) {
+#else
 static char *tracer_devnode(const struct device *dev, umode_t *mode) {
+#endif
     if (mode)
         *mode = DEVMODE;
     return NULL;
@@ -96,7 +98,11 @@ static int __init my_kprobe_init(void) {
         return -ENOMEM;
     }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
+    tracer_class = class_create(THIS_MODULE, CLASS_NAME);
+#else
     tracer_class = class_create(CLASS_NAME);
+#endif
     if (IS_ERR(tracer_class)) {
         unregister_chrdev(major, DEVNAME);
         ring_buffer_destroy(rbuf);
@@ -123,7 +129,6 @@ static int __init my_kprobe_init(void) {
             free_ptr_array((void **)kp, i);
             ring_buffer_destroy(rbuf);
             device_destroy(tracer_class, MKDEV(major, 0));
-            class_unregister(tracer_class);
             class_destroy(tracer_class);
             unregister_chrdev(major, DEVNAME);
             return -ENOMEM;
@@ -142,7 +147,6 @@ static int __init my_kprobe_init(void) {
         free_ptr_array((void **)kp, KPROBES_COUNT);
         ring_buffer_destroy(rbuf);
         device_destroy(tracer_class, MKDEV(major, 0));
-        class_unregister(tracer_class);
         class_destroy(tracer_class);
         unregister_chrdev(major, DEVNAME);
         return ret;
@@ -161,7 +165,6 @@ static void __exit my_kprobe_exit(void) {
     free_ptr_array((void **)kp, KPROBES_COUNT);
     ring_buffer_destroy(rbuf);
     device_destroy(tracer_class, MKDEV(major, 0));
-    class_unregister(tracer_class);
     class_destroy(tracer_class);
     unregister_chrdev(major, DEVNAME);
 }

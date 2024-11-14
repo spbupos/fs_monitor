@@ -1,5 +1,6 @@
 #include <linux/fs.h>
 #include <linux/fs_struct.h>
+#include <linux/mount.h>
 #include "header.h"
 
 void ring_buffer_init(struct ring_buffer *buffer) {
