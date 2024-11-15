@@ -10,7 +10,6 @@ struct ring_buffer *rbuf;
 struct kprobe **kp;
 
 /* for poll */
-//DEFINE_SPINLOCK(lock);
 DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 bool polled = false;
 
@@ -83,7 +82,7 @@ static char *tracer_devnode(const struct device *dev, umode_t *mode) {
     return NULL;
 }
 
-static int __init my_kprobe_init(void) {
+static long __init my_kprobe_init(void) {
     int ret, i;
 
     rbuf = kmalloc(sizeof(struct ring_buffer), GFP_KERNEL);

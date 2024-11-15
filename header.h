@@ -72,7 +72,7 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs);
 int vfs_unlink_trace(struct kprobe *p, struct pt_regs *regs);
 
 extern bool data_available;
-//extern spinlock_t lock;
+extern spinlock_t lock;
 extern char monitor_entry[ENTRY_SIZE];
 
 

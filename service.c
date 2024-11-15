@@ -3,6 +3,9 @@
 #include <linux/mount.h>
 #include "header.h"
 
+/* for ring buffer operations */
+DEFINE_SPINLOCK(lock);
+
 void ring_buffer_init(struct ring_buffer *buffer) {
     buffer->data = kmalloc(BUFFER_SIZE, GFP_KERNEL);
     buffer->head = 0;
@@ -27,6 +30,7 @@ EXPORT_SYMBOL(ring_buffer_clear);
 void ring_buffer_append(struct ring_buffer *buffer, const char *values, size_t length) {
     size_t i;
 
+    spin_lock(&lock);
     for (i = 0; i < length; i++) {
         if (buffer->size < BUFFER_SIZE) {
             buffer->data[buffer->tail] = values[i];
@@ -38,6 +42,7 @@ void ring_buffer_append(struct ring_buffer *buffer, const char *values, size_t l
             buffer->head = (buffer->head + 1) % BUFFER_SIZE;
         }
     }
+    spin_unlock(&lock);
 }
 EXPORT_SYMBOL(ring_buffer_append);
 
