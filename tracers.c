@@ -7,8 +7,9 @@
 bool data_available = false;
 char monitor_entry[ENTRY_SIZE];
 
-/* in x86_64 registers is used for arguments passing: rdi, rsi, rdx, rcx
- * WARNING: in some cases can be transformed to r10, r9, r8, rdx
+/* in x86_64 registers is used for arguments passing: rdi, rsi, rdx, r10, r8, r9
+ * but in 'struct pt_regs' we actually have: rdi, rsi, rdx, rcx, rbx, rax
+ * and sometimes r10, r9, r8, rax, rcx, rdx (???)
  */
 int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
     /* taken from declaration of 'vfs_write' function
@@ -17,7 +18,7 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
     struct file *file = (struct file *)regs->di;
     const char *buf = (const char *)regs->si;
     size_t count = (size_t)regs->dx;
-    loff_t *ppos = (loff_t *)regs->cx;
+    loff_t *ppos = (loff_t *)regs->cx; /* instead of r10 */
 
     /* some buffers */
     char kbuf[COPY_BUF_SIZE],
@@ -31,7 +32,7 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
     char **to_be_entry;
 
     /* we want work only with writes on real files on real FS */
-    if (!file || !S_ISREG(file->f_inode->i_mode) || is_service_fs(&file->f_path))
+    if (!file || !S_ISREG(file->f_inode->i_mode) || is_service_fs(file->f_path.dentry))
         return 0;
 
     to_be_entry = kmalloc(ENTRY_WRITE_LENGTH * sizeof(char *), GFP_KERNEL);
@@ -83,44 +84,44 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
 }
 EXPORT_SYMBOL(vfs_write_trace);
 
-int do_unlinkat_trace(struct kprobe *p, struct pt_regs *regs) {
+int vfs_unlink_trace(struct kprobe *p, struct pt_regs *regs) {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 11, 0)
     /* taken from declaration of 'do_unlinkat' function
-     * int do_unlinkat(int dfd, struct filename *name)
-     */
-    struct filename *name = (struct filename *)regs->si;
-
-    /* some buffers */
-    char filename[MAX_PATH_LEN];
-    char *parent_path;
+     * int vfs_unlink(struct user_namespace *mnt_userns, struct inode *dir,
+           struct dentry *dentry, struct inode **delegated_inode)
+     * first argument is vary on versions 5.12-6.12, but we don't
+     * need it at all, so it will be 'void *dummy' */
+    void *dummy = (void *)regs->di;
+    struct inode *dir = (struct inode *)regs->si;
+    struct dentry *dentry = (struct dentry *)regs->dx;
+#else
+    /* taken from declaration of 'do_unlinkat' function
+     * int vfs_unlink(struct inode *dir, struct dentry *dentry,
+           struct inode **delegated_inode) */
+    struct inode *dir = (struct inode *)regs->di;
+    struct dentry *dentry = (struct dentry *)regs->si;
+#endif
+    char *path, path_buf[MAX_PATH_LEN];
     size_t r;
 
-    struct path parent;
-    struct qstr last;
-    int type, ret;
+    char **to_be_entry;
 
-    char **to_be_entry = kmalloc(ENTRY_DELETE_LENGTH * sizeof(char *), GFP_KERNEL);
+    if (!dentry || !S_ISREG(dentry->d_inode->i_mode) || is_service_fs(dentry))
+        return 0;
 
-    /* clean up global entry by memset */
-    memset(monitor_entry, 0, ENTRY_SIZE);
+    to_be_entry = kmalloc(ENTRY_WRITE_LENGTH * sizeof(char *), GFP_KERNEL);
 
     /* timestamp */
     to_be_entry[0] = kmalloc(SPEC_STRINGS_SIZE, GFP_KERNEL);
     sprintf(to_be_entry[0], "%lld", ktime_get_ns());
 
     /* file path */
-    to_be_entry[1] = kmalloc(MAX_PATH_LEN, GFP_KERNEL);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
-    sprintf(to_be_entry[1], "%s", name->name);
-#else
-    ret = vfs_path_parent_lookup(name, 0, &parent, &last, &type, NULL);
-    if (ret < 0 || is_service_fs(&parent))
-        return 0;
-    parent_path = d_path(&parent, filename, MAX_PATH_LEN);
-    sprintf(to_be_entry[1], "%s/%.*s", parent_path, last.len, last.name);
-#endif
+    path = dentry_path_raw(dentry, path_buf, MAX_PATH_LEN);
+    to_be_entry[1] = kmalloc(strlen(path) + 1, GFP_KERNEL);
+    sprintf(to_be_entry[1], "%s", path);
 
-    /* "deleted" message */
-    to_be_entry[2] = kmalloc(SPEC_STRINGS_SIZE, GFP_KERNEL);
+    /* deleted flag */
+    to_be_entry[2] = kmalloc(2, GFP_KERNEL);
     sprintf(to_be_entry[2], "<deleted>");
 
     /* write entry to ring buffer */
@@ -136,4 +137,4 @@ int do_unlinkat_trace(struct kprobe *p, struct pt_regs *regs) {
 
     return 0;
 }
-EXPORT_SYMBOL(do_unlinkat_trace);
+EXPORT_SYMBOL(vfs_unlink_trace);

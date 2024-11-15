@@ -51,13 +51,13 @@ void ring_buffer_read(struct ring_buffer *buffer, char *output) {
 }
 EXPORT_SYMBOL(ring_buffer_read);
 
-inline int is_service_fs(struct path *path) {
+inline int is_service_fs(struct dentry *dentry) {
     /* any fs without device is considered a service fs
      * yes, we'll lose some fs like NFS or curlftpfs
      * (and some other fuse-based which aren't 'fuseblk')
      * but we're not interested in them
      */
-    return !(path->mnt->mnt_sb->s_type->fs_flags & FS_REQUIRES_DEV);
+    return !(dentry->d_sb->s_type->fs_flags & FS_REQUIRES_DEV);
 }
 EXPORT_SYMBOL(is_service_fs);
 

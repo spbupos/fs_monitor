@@ -60,7 +60,7 @@ int base64_decode(const char *src, int len, u8 *dst);
 
 
 /* service */
-int is_service_fs(struct path *path);
+inline int is_service_fs(struct dentry *dentry);
 
 int copy_start_middle(char *to, const char *from, size_t count, int middle);
 size_t entry_combiner(char *entry, const char **to_be_entry, size_t cnt);
@@ -69,7 +69,7 @@ void free_ptr_array(void **ptr_array, size_t count);
 
 /* tracers */
 int vfs_write_trace(struct kprobe *p, struct pt_regs *regs);
-int do_unlinkat_trace(struct kprobe *p, struct pt_regs *regs);
+int vfs_unlink_trace(struct kprobe *p, struct pt_regs *regs);
 
 extern bool data_available;
 //extern spinlock_t lock;

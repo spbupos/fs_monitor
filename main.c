@@ -138,8 +138,8 @@ static int __init my_kprobe_init(void) {
     /* NOTICE: all 'struct kprobe' must be fulfiled with, at least, symbol_name and pre(post)_handler */
     kp[0]->symbol_name = "vfs_write";
     kp[0]->pre_handler = vfs_write_trace;
-    kp[1]->symbol_name = "do_unlinkat";
-    kp[1]->pre_handler = do_unlinkat_trace;
+    kp[1]->symbol_name = "vfs_unlink";
+    kp[1]->pre_handler = vfs_unlink_trace;
 
     ret = register_kprobes(kp, KPROBES_COUNT);
     if (ret < 0) {
@@ -151,11 +151,6 @@ static int __init my_kprobe_init(void) {
         unregister_chrdev(major, DEVNAME);
         return ret;
     }
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
-    printk(KERN_WARNING "fs_monitor: resolving absolute paths directly from 'struct filename' "
-                        "is not supported for kernels older than 6.4.0, so on deletion if "
-                        "it was relative, you won't see real path\n");
-#endif
 
     return 0;
 }

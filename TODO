@@ -1,4 +1,0 @@
-- fix 'bad address' error after fulfilling the ring buffer < 6.0 kernels
-- add post handler which will take start of file and it's resulting size
-- add timestamps to the log file
-- check for work on "very" old kernels like 4.19, 4.4, 3.10, 2.6.32... how much of this is still relevant?
