@@ -46,7 +46,7 @@ void ring_buffer_append(struct ring_buffer *buffer, const char *values, size_t l
 }
 EXPORT_SYMBOL(ring_buffer_append);
 
-void ring_buffer_read(struct ring_buffer *buffer, char *output) {
+void ring_buffer_rread(struct ring_buffer *buffer, char *output) {
     size_t idx = buffer->head, i;
     for (i = 0; i < buffer->size; i++) {
         output[i] = buffer->data[idx];
@@ -54,7 +54,7 @@ void ring_buffer_read(struct ring_buffer *buffer, char *output) {
     }
     output[buffer->size] = '\0';
 }
-EXPORT_SYMBOL(ring_buffer_read);
+EXPORT_SYMBOL(ring_buffer_rread);
 
 inline int is_service_fs(struct dentry *dentry) {
     /* any fs without device is considered a service fs

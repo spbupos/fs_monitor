@@ -42,7 +42,7 @@ ssize_t chardev_read(struct file *file, char __user *buffer, size_t count, loff_
             goto exit;
         }
 
-        ring_buffer_read(rbuf, out_buffer);
+        ring_buffer_rread(rbuf, out_buffer);
         if (copy_to_user(buffer, out_buffer, count < rbuf->size ? count : rbuf->size)) {
             kfree(out_buffer);
             ret = -EFAULT;
@@ -57,7 +57,7 @@ exit:
     return ret;
 }
 
-static __poll_t chardev_poll(struct file *file, poll_table *wait) {
+static unsigned int chardev_poll(struct file *file, poll_table *wait) {
     poll_wait(file, &wait_queue, wait);
     if (data_available) {
         polled = true;
