@@ -82,7 +82,7 @@ static char *tracer_devnode(const struct device *dev, umode_t *mode) {
     return NULL;
 }
 
-static long __init my_kprobe_init(void) {
+static int __init my_kprobe_init(void) {
     int ret, i;
 
     rbuf = kmalloc(sizeof(struct ring_buffer), GFP_KERNEL);
