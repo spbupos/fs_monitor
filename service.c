@@ -85,7 +85,7 @@ int copy_start_middle(char *to, const char *from, size_t count, int middle) {
 }
 EXPORT_SYMBOL(copy_start_middle);
 
-// build entry with '\0's as separators
+/* build entry with '\0's as separators */
 size_t entry_combiner(char *entry, const char **to_be_entry, size_t cnt) {
     size_t printed_len = 1;
     int i;
@@ -110,3 +110,47 @@ void free_ptr_array(void **ptr_array, size_t count) {
     kfree(ptr_array);
 }
 EXPORT_SYMBOL(free_ptr_array);
+
+/* reverse buffer */
+static int prepend(char **buffer, int *buflen, const char *str, int namelen) {
+    *buflen -= namelen;
+    if (*buflen < 0)
+        return -ENAMETOOLONG;
+    *buffer -= namelen;
+    memcpy(*buffer, str, namelen);
+    return 0;
+}
+
+static int prepend_qstr(char **buffer, int *buflen, struct qstr *name) {
+    return prepend(buffer, buflen, name->name, name->len);
+}
+
+char *own_dentry_path(struct dentry *dentry, char *buf, int buflen) {
+    char *end = buf + buflen;
+    char *retval;
+
+    if (buflen < 1)
+        goto Elong;
+
+    prepend(&end, &buflen, "\0", 1);
+    retval = end - 1;
+    *retval = '/';
+
+    while (!IS_ROOT(dentry)) {
+        struct dentry *parent = dentry->d_parent;
+
+        prefetch(parent);
+        if ((prepend_qstr(&end, &buflen, &dentry->d_name) != 0) ||
+            (prepend(&end, &buflen, "/", 1) != 0))
+            goto Elong;
+
+        retval = end;
+        dentry = parent;
+    }
+
+    return retval;
+
+Elong:
+    return ERR_PTR(-ENAMETOOLONG);
+}
+EXPORT_SYMBOL(own_dentry_path);
