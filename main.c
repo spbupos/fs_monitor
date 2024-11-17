@@ -132,6 +132,10 @@ static int __init my_kprobe_init(void) {
             unregister_chrdev(major, DEVNAME);
             return -ENOMEM;
         }
+        /* NOTICE: for some kernels between 4.9 and 5.10 we have
+         * -EINVAL if we don't set 'addr' to NULL explicitly
+         * because of some garbage in memory, it seems */
+        kp[i]->addr = NULL;
     }
 
     /* NOTICE: all 'struct kprobe' must be fulfiled with, at least, symbol_name and pre(post)_handler */
