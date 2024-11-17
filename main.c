@@ -133,9 +133,9 @@ static int __init my_kprobe_init(void) {
             return -ENOMEM;
         }
         /* NOTICE: for some kernels between 4.9 and 5.10 we have
-         * -EINVAL if we don't set 'addr' to NULL explicitly
+         * -EINVAL if we don't set 0 to entite memory of kprobe
          * because of some garbage in memory, it seems */
-        kp[i]->addr = NULL;
+        memset(kp[i], 0, sizeof(struct kprobe));
     }
 
     /* NOTICE: all 'struct kprobe' must be fulfiled with, at least, symbol_name and pre(post)_handler */

@@ -1,3 +1,5 @@
+#include <linux/sched.h>
+#include <linux/wait.h>
 #include "header.h"
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(6, 0, 0)
@@ -6,6 +8,22 @@
 
 bool data_available = false;
 char monitor_entry[ENTRY_SIZE];
+
+static inline struct inode *get_file_inode(struct file *file) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
+    return file->f_path.dentry->d_inode;
+#else
+    return file->f_inode; /* inode field was added at 3.9-rc1 */
+#endif
+}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+#include <linux/hrtimer.h>
+#include <linux/ktime.h>
+static inline s64 ktime_get_ns(void) {
+    return ktime_to_ns(ktime_get()); /* 'ktime_get_ns' was added with 'linux/timekeeping.h' header in 3.17-rc1 */
+}
+#endif
 
 /* in x86_64 registers is used for arguments passing: rdi, rsi, rdx, rcx, r8, r9
  * but in 'struct pt_regs' we sometimes actually have r10, r9, r8, ... (???)
@@ -31,7 +49,7 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
     char **to_be_entry;
 
     /* we want work only with writes on real files on real FS */
-    if (!file || !S_ISREG(file->f_inode->i_mode) || is_service_fs(file->f_path.dentry))
+    if (!file || !S_ISREG(get_file_inode(file)->i_mode) || is_service_fs(file->f_path.dentry))
         return 0;
 
     to_be_entry = kmalloc(ENTRY_WRITE_LENGTH * sizeof(char *), GFP_KERNEL);
@@ -60,7 +78,7 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
     /* file size */
     to_be_entry[3] = kmalloc(SPEC_STRINGS_SIZE, GFP_KERNEL);
     sprintf(to_be_entry[3], "%lld",
-            max(pos + (loff_t)count, file->f_inode->i_size));
+            max(pos + (loff_t)count, get_file_inode(file)->i_size));
 
     /* beginning data */
     to_be_entry[4] = kmalloc(BASE64_ENCODED_MAX, GFP_KERNEL);
