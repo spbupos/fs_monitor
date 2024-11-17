@@ -142,11 +142,18 @@ static int __init my_kprobe_init(void) {
         memset(kp[i], 0, sizeof(struct kprobe));
     }
 
-    /* NOTICE: all 'struct kprobe' must be fulfiled with, at least, symbol_name and pre(post)_handler */
     kp[kpc]->symbol_name = "vfs_write";
     kp[kpc++]->pre_handler = vfs_write_trace;
     kp[kpc]->symbol_name = "vfs_unlink";
     kp[kpc++]->pre_handler = vfs_unlink_trace;
+    kp[kpc]->symbol_name = "vfs_rename";
+    kp[kpc++]->pre_handler = vfs_rename_trace;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+    kp[kpc]->symbol_name = "do_sendfile";
+#else
+    kp[kpc]->symbol_name = "vfs_copy_file_range";
+#endif
+    kp[kpc++]->pre_handler = vfs_copy_trace;
 
     ret = register_kprobes(kp, kpc);
     if (ret < 0) {
