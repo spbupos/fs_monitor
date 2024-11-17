@@ -174,7 +174,13 @@ EXPORT_SYMBOL(own_dentry_path);
 /* device name resolver */
 void own_bdevname(struct block_device *bdev, char *buf) {
 	struct gendisk *hd = bdev->bd_disk;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+    int partno = bdev->bd_part->partno;
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
 	int partno = bdev->bd_partno;
+#else
+    int partno = bdev->__bd_flags & BD_PARTNO;
+#endif
 
 	if (!partno)
 		sprintf(buf, "/dev/%s", hd->disk_name);
