@@ -3,8 +3,24 @@
 #include <linux/mount.h>
 #include "header.h"
 
+/* for device name resolving */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
+#include <linux/blkdev.h>
+#else
+#include <linux/genhd.h>
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
+#include <linux/blk_types.h>
+#endif
+
 /* for ring buffer operations */
 DEFINE_SPINLOCK(lock);
+
+bool kisdigit(char c) {
+    return c >= '0' && c <= '9';
+}
+EXPORT_SYMBOL(kisdigit);
 
 void ring_buffer_init(struct ring_buffer *buffer) {
     buffer->data = kmalloc(BUFFER_SIZE, GFP_KERNEL);
@@ -154,3 +170,17 @@ Elong:
     return ERR_PTR(-ENAMETOOLONG);
 }
 EXPORT_SYMBOL(own_dentry_path);
+
+/* device name resolver */
+void bdevname(struct block_device *bdev, char *buf) {
+	struct gendisk *hd = bdev->bd_disk;
+	int partno = bdev->bd_partno;
+
+	if (!partno)
+		snprintf(buf, BDEVNAME_SIZE, "/dev/%s", hd->disk_name);
+	else if (kisdigit(hd->disk_name[strlen(hd->disk_name)-1]))
+		snprintf(buf, BDEVNAME_SIZE, "/dev/%sp%d", hd->disk_name, partno);
+	else
+		snprintf(buf, BDEVNAME_SIZE, "/dev/%s%d", hd->disk_name, partno);
+}
+EXPORT_SYMBOL(bdevname);

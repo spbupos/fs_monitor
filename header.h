@@ -22,8 +22,7 @@ extern struct kprobe **kp;
 
 /* ring buffer */
 #define ENTRY_SIZE 512
-#define ENTRY_WRITE_LENGTH 5
-#define ENTRY_DELETE_LENGTH 3
+#define ENTRY_MAX_CNT_SIZE 10
 #define SPEC_STRINGS_SIZE 30
 
 struct ring_buffer {
@@ -60,6 +59,7 @@ int base64_decode(const char *src, int len, u8 *dst);
 
 
 /* service */
+bool kisdigit(char c);
 inline int is_regular(struct dentry *dentry);
 
 int copy_start_middle(char *to, const char *from, size_t count, int middle);
@@ -67,6 +67,7 @@ size_t entry_combiner(char *entry, const char **to_be_entry, size_t cnt);
 void free_ptr_array(void **ptr_array, size_t count);
 
 char *own_dentry_path(struct dentry *dentry, char *buf, int buflen);
+void bdevname(struct block_device *bdev, char *buf);
 
 
 /* tracers */

@@ -1,5 +1,6 @@
 #include <linux/sched.h>
 #include <linux/wait.h>
+#include <linux/fs.h>
 #include "header.h"
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(6, 0, 0)
@@ -43,7 +44,7 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
          *path;
 
     int write_count;
-    size_t r;
+    size_t r, entry_current_size = 0;
     loff_t pos = ppos ? *ppos : 0;
 
     char **to_be_entry;
@@ -52,49 +53,50 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
     if (!file || !is_regular(file->f_path.dentry))
         return 0;
 
-    to_be_entry = kmalloc(ENTRY_WRITE_LENGTH * sizeof(char *), GFP_KERNEL);
+    to_be_entry = kmalloc(ENTRY_MAX_CNT_SIZE * sizeof(char *), GFP_KERNEL);
+    memset(to_be_entry, 0, ENTRY_MAX_CNT_SIZE * sizeof(char *));
 
     /* clean up global entry by memset */
     memset(monitor_entry, 0, ENTRY_SIZE);
 
     /* timestamp */
-    to_be_entry[0] = kmalloc(SPEC_STRINGS_SIZE, GFP_KERNEL);
-    sprintf(to_be_entry[0], "%lld", ktime_get_ns());
+    to_be_entry[entry_current_size] = kmalloc(SPEC_STRINGS_SIZE, GFP_KERNEL);
+    sprintf(to_be_entry[entry_current_size++], "%lld", ktime_get_ns());
 
     /* file path */
     path = d_path(&file->f_path, filename, MAX_PATH_LEN);
     /* WARNING: path is actually filename + some_offset, so
      * it can't be managed or kfreed, so we need to kmalloc it
      */
-    to_be_entry[1] = kmalloc(strlen(path) + 1, GFP_KERNEL);
-    sprintf(to_be_entry[1], "%s", path);
+    to_be_entry[entry_current_size] = kmalloc(strlen(path) + 1, GFP_KERNEL);
+    sprintf(to_be_entry[entry_current_size++], "%s", path);
 
     /* middle data */
     write_count = copy_start_middle(kbuf, buf, count, 1);
-    to_be_entry[2] = kmalloc(BASE64_ENCODED_MAX, GFP_KERNEL);
-    r = base64_encode((const u8 *)kbuf, write_count, to_be_entry[2]);
-    to_be_entry[2][r] = '\0';
+    to_be_entry[entry_current_size] = kmalloc(BASE64_ENCODED_MAX, GFP_KERNEL);
+    r = base64_encode((const u8 *)kbuf, write_count, to_be_entry[entry_current_size]);
+    to_be_entry[entry_current_size++][r] = '\0';
 
     /* file size */
-    to_be_entry[3] = kmalloc(SPEC_STRINGS_SIZE, GFP_KERNEL);
-    sprintf(to_be_entry[3], "%lld",
+    to_be_entry[entry_current_size] = kmalloc(SPEC_STRINGS_SIZE, GFP_KERNEL);
+    sprintf(to_be_entry[entry_current_size++], "%lld",
             max(pos + (loff_t)count, get_file_inode(file)->i_size));
 
     /* beginning data */
-    to_be_entry[4] = kmalloc(BASE64_ENCODED_MAX, GFP_KERNEL);
+    to_be_entry[entry_current_size] = kmalloc(BASE64_ENCODED_MAX, GFP_KERNEL);
     if (pos == 0) {
         write_count = copy_start_middle(kbuf, buf, count, 0);
-        r = base64_encode((const u8 *) kbuf, write_count, to_be_entry[4]);
-        to_be_entry[4][r] = '\0';
+        r = base64_encode((const u8 *) kbuf, write_count, to_be_entry[entry_current_size]);
+        to_be_entry[entry_current_size++][r] = '\0';
     } else
-        sprintf(to_be_entry[4], "<not_a_beginning>");
+        sprintf(to_be_entry[entry_current_size++], "<not_a_beginning>");
 
     /* write entry to ring buffer */
-    r = entry_combiner(monitor_entry, (const char **)to_be_entry, ENTRY_WRITE_LENGTH);
+    r = entry_combiner(monitor_entry, (const char **)to_be_entry, entry_current_size);
     ring_buffer_append(rbuf, monitor_entry, r);
 
     /* cleanup and wake up poll */
-    free_ptr_array((void **)to_be_entry, ENTRY_WRITE_LENGTH);
+    free_ptr_array((void **)to_be_entry, entry_current_size);
     if (!data_available) {
         data_available = true;
         wake_up_interruptible(&wait_queue);
@@ -124,37 +126,42 @@ int vfs_unlink_trace(struct kprobe *p, struct pt_regs *regs) {
     struct inode **delegated_inode = (struct inode **)regs->dx;
 #endif
     char *path, path_buf[MAX_PATH_LEN];
-    size_t r;
+    size_t r, entry_current_size = 0;
 
     char **to_be_entry;
 
     if (!dentry || !is_regular(dentry))
         return 0;
 
-    to_be_entry = kmalloc(ENTRY_DELETE_LENGTH * sizeof(char *), GFP_KERNEL);
+    to_be_entry = kmalloc(ENTRY_MAX_CNT_SIZE * sizeof(char *), GFP_KERNEL);
+    memset(to_be_entry, 0, ENTRY_MAX_CNT_SIZE * sizeof(char *));
 
     /* clean up global entry by memset */
     memset(monitor_entry, 0, ENTRY_SIZE);
 
     /* timestamp */
-    to_be_entry[0] = kmalloc(SPEC_STRINGS_SIZE, GFP_KERNEL);
-    sprintf(to_be_entry[0], "%lld", ktime_get_ns());
+    to_be_entry[entry_current_size] = kmalloc(SPEC_STRINGS_SIZE, GFP_KERNEL);
+    sprintf(to_be_entry[entry_current_size++], "%lld", ktime_get_ns());
+
+    /* device name */
+    to_be_entry[entry_current_size] = kmalloc(MAX_PATH_LEN, GFP_KERNEL);
+    bdevname(dentry->d_sb->s_bdev, to_be_entry[entry_current_size++]);
 
     /* file path */
     path = own_dentry_path(dentry, path_buf, MAX_PATH_LEN);
-    to_be_entry[1] = kmalloc(strlen(path) + 1, GFP_KERNEL);
-    sprintf(to_be_entry[1], "%s", path);
+    to_be_entry[entry_current_size] = kmalloc(strlen(path) + 1, GFP_KERNEL);
+    sprintf(to_be_entry[entry_current_size++], "%s", path);
 
     /* deleted flag */
-    to_be_entry[2] = kmalloc(SPEC_STRINGS_SIZE, GFP_KERNEL);
-    sprintf(to_be_entry[2], "<deleted>");
+    to_be_entry[entry_current_size] = kmalloc(SPEC_STRINGS_SIZE, GFP_KERNEL);
+    sprintf(to_be_entry[entry_current_size++], "<deleted>");
 
     /* write entry to ring buffer */
-    r = entry_combiner(monitor_entry, (const char **)to_be_entry, ENTRY_DELETE_LENGTH);
+    r = entry_combiner(monitor_entry, (const char **)to_be_entry, entry_current_size);
     ring_buffer_append(rbuf, monitor_entry, r);
 
     /* cleanup and wake up poll */
-    free_ptr_array((void **)to_be_entry, ENTRY_DELETE_LENGTH);
+    free_ptr_array((void **)to_be_entry, entry_current_size);
     if (!data_available) {
         data_available = true;
         wake_up_interruptible(&wait_queue);
