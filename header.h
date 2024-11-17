@@ -61,7 +61,7 @@ int base64_decode(const char *src, int len, u8 *dst);
 
 
 /* service */
-bool kisdigit(char c);
+int kisdigit(char c);
 inline int is_regular(struct dentry *dentry);
 
 int copy_start_middle(char *to, const char *from, size_t count, int middle);
@@ -78,7 +78,7 @@ int vfs_unlink_trace(struct kprobe *p, struct pt_regs *regs);
 int vfs_rename_trace(struct kprobe *p, struct pt_regs *regs);
 int vfs_copy_trace(struct kprobe *p, struct pt_regs *regs);
 
-extern bool data_available;
+extern int data_available;
 extern spinlock_t lock;
 extern char monitor_entry[ENTRY_SIZE];
 

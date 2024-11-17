@@ -11,7 +11,7 @@ struct kprobe **kp;
 
 /* for poll */
 DECLARE_WAIT_QUEUE_HEAD(wait_queue);
-bool polled = false;
+int polled = 0;
 
 /* for chardev */
 static struct class* tracer_class = NULL;
@@ -35,7 +35,7 @@ ssize_t chardev_read(struct file *file, char __user *buffer, size_t count, loff_
 
         ret = (ssize_t)ENTRY_SIZE;
         *pos = 0; // drop position because polling always starts from the beginning
-        polled = false;
+        polled = 0;
     } else {
         char *out_buffer = kmalloc(BUFFER_SIZE, GFP_KERNEL);
         if (!out_buffer) {
@@ -62,8 +62,8 @@ exit:
 static unsigned int chardev_poll(struct file *file, poll_table *wait) {
     poll_wait(file, &wait_queue, wait);
     if (data_available) {
-        polled = true;
-        data_available = false;
+        polled = 1;
+        data_available = 0;
         return POLLIN | POLLRDNORM;
     }
     return 0;

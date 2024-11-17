@@ -17,7 +17,7 @@
 /* for ring buffer operations */
 DEFINE_SPINLOCK(lock);
 
-bool kisdigit(char c) {
+int kisdigit(char c) {
     return c >= '0' && c <= '9';
 }
 EXPORT_SYMBOL(kisdigit);

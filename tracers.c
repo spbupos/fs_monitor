@@ -7,7 +7,7 @@
 #include <linux/base64.h>
 #endif
 
-bool data_available = false;
+int data_available = 0;
 char monitor_entry[ENTRY_SIZE];
 
 static inline struct inode *get_file_inode(struct file *file) {
@@ -98,7 +98,7 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
     /* cleanup and wake up poll */
     free_ptr_array((void **)to_be_entry, entry_current_size);
     if (!data_available) {
-        data_available = true;
+        data_available = 1;
         wake_up_interruptible(&wait_queue);
     }
 
@@ -163,7 +163,7 @@ int vfs_unlink_trace(struct kprobe *p, struct pt_regs *regs) {
     /* cleanup and wake up poll */
     free_ptr_array((void **)to_be_entry, entry_current_size);
     if (!data_available) {
-        data_available = true;
+        data_available = 1;
         wake_up_interruptible(&wait_queue);
     }
 
