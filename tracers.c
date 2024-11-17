@@ -49,7 +49,7 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
     char **to_be_entry;
 
     /* we want work only with writes on real files on real FS */
-    if (!file || !S_ISREG(get_file_inode(file)->i_mode) || is_service_fs(file->f_path.dentry))
+    if (!file || !is_regular(file->f_path.dentry))
         return 0;
 
     to_be_entry = kmalloc(ENTRY_WRITE_LENGTH * sizeof(char *), GFP_KERNEL);
@@ -128,7 +128,7 @@ int vfs_unlink_trace(struct kprobe *p, struct pt_regs *regs) {
 
     char **to_be_entry;
 
-    if (!dentry || !S_ISREG(dentry->d_inode->i_mode) || is_service_fs(dentry))
+    if (!dentry || !is_regular(dentry))
         return 0;
 
     to_be_entry = kmalloc(ENTRY_DELETE_LENGTH * sizeof(char *), GFP_KERNEL);

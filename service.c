@@ -56,15 +56,18 @@ void ring_buffer_rread(struct ring_buffer *buffer, char *output) {
 }
 EXPORT_SYMBOL(ring_buffer_rread);
 
-inline int is_service_fs(struct dentry *dentry) {
+inline int is_regular(struct dentry *dentry) {
     /* any fs without device is considered a service fs
      * yes, we'll lose some fs like NFS or curlftpfs
      * (and some other fuse-based which aren't 'fuseblk')
      * but we're not interested in them
      */
-    return !(dentry->d_sb->s_type->fs_flags & FS_REQUIRES_DEV);
+    int subres = (dentry->d_sb->s_type->fs_flags & FS_REQUIRES_DEV);
+    if (dentry->d_inode) /* on old kernels inode is sometimes NULL */
+        return subres && S_ISREG(dentry->d_inode->i_mode);
+    return subres;
 }
-EXPORT_SYMBOL(is_service_fs);
+EXPORT_SYMBOL(is_regular);
 
 // copy 40 bytes from the middle of 'from' to 'to'
 int copy_start_middle(char *to, const char *from, size_t count, int middle) {

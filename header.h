@@ -60,7 +60,7 @@ int base64_decode(const char *src, int len, u8 *dst);
 
 
 /* service */
-inline int is_service_fs(struct dentry *dentry);
+inline int is_regular(struct dentry *dentry);
 
 int copy_start_middle(char *to, const char *from, size_t count, int middle);
 size_t entry_combiner(char *entry, const char **to_be_entry, size_t cnt);
