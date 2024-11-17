@@ -170,3 +170,33 @@ int vfs_unlink_trace(struct kprobe *p, struct pt_regs *regs) {
     return 0;
 }
 EXPORT_SYMBOL(vfs_unlink_trace);
+
+int vfs_rename_trace(struct kprobe *p, struct pt_regs *regs) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 12, 0)
+    /* int vfs_rename(struct inode *old_dir, struct dentry *old_dentry,
+                      struct inode *new_dir, struct dentry *new_dentry,
+                      ...) */
+#else
+    /* int vfs_rename(struct renamedata *rd) */
+#endif
+    TODO();
+
+    return 0;
+}
+EXPORT_SYMBOL(vfs_rename_trace);
+
+int vfs_copy_trace(struct kprobe *p, struct pt_regs *regs) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+    /* ssize_t do_sendfile(int out_fd, int in_fd, loff_t *ppos,
+                           size_t count, ...) */
+#else
+    /* ssize_t vfs_copy_file_range(struct file *file_in, loff_t pos_in,
+			                       struct file *file_out, loff_t pos_out,
+                                   ...) */
+#endif
+    TODO();
+
+    return 0;
+}
+
+EXPORT_SYMBOL(vfs_copy_trace);

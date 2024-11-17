@@ -18,6 +18,8 @@ static struct class* tracer_class = NULL;
 static struct device* tracer_device = NULL;
 static int major;
 
+static int kpc = 0;
+
 ssize_t chardev_read(struct file *file, char __user *buffer, size_t count, loff_t *pos) {
     ssize_t ret;
 
@@ -123,8 +125,8 @@ static int __init my_kprobe_init(void) {
     printk(KERN_INFO "Monitor registered at /dev/%s with major number %d\n", DEVNAME, major);
 
     /* alloc kprobes */
-    kp = kmalloc(KPROBES_COUNT * sizeof(struct kprobe *), GFP_KERNEL);
-    for (i = 0; i < KPROBES_COUNT; i++) {
+    kp = kmalloc(KPROBES_MAX_COUNT * sizeof(struct kprobe *), GFP_KERNEL);
+    for (i = 0; i < KPROBES_MAX_COUNT; i++) {
         kp[i] = kmalloc(sizeof(struct kprobe), GFP_KERNEL);
         if (!kp[i]) {
             free_ptr_array((void **)kp, i);
@@ -141,15 +143,15 @@ static int __init my_kprobe_init(void) {
     }
 
     /* NOTICE: all 'struct kprobe' must be fulfiled with, at least, symbol_name and pre(post)_handler */
-    kp[0]->symbol_name = "vfs_write";
-    kp[0]->pre_handler = vfs_write_trace;
-    kp[1]->symbol_name = "vfs_unlink";
-    kp[1]->pre_handler = vfs_unlink_trace;
+    kp[kpc]->symbol_name = "vfs_write";
+    kp[kpc++]->pre_handler = vfs_write_trace;
+    kp[kpc]->symbol_name = "vfs_unlink";
+    kp[kpc++]->pre_handler = vfs_unlink_trace;
 
-    ret = register_kprobes(kp, KPROBES_COUNT);
+    ret = register_kprobes(kp, kpc);
     if (ret < 0) {
         printk(KERN_INFO "Failed to register kprobe: %d\n", ret);
-        free_ptr_array((void **)kp, KPROBES_COUNT);
+        free_ptr_array((void **)kp, KPROBES_MAX_COUNT);
         ring_buffer_destroy(rbuf);
         device_destroy(tracer_class, MKDEV(major, 0));
         class_destroy(tracer_class);
@@ -161,8 +163,8 @@ static int __init my_kprobe_init(void) {
 }
 
 static void __exit my_kprobe_exit(void) {
-    unregister_kprobes(kp, KPROBES_COUNT);
-    free_ptr_array((void **)kp, KPROBES_COUNT);
+    unregister_kprobes(kp, kpc);
+    free_ptr_array((void **)kp, KPROBES_MAX_COUNT);
     ring_buffer_destroy(rbuf);
     device_destroy(tracer_class, MKDEV(major, 0));
     class_destroy(tracer_class);

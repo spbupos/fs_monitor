@@ -8,9 +8,11 @@
 #include <linux/namei.h>
 #include <linux/slab.h>
 
+#define TODO() (void *)(0)
+
 
 /* init */
-#define KPROBES_COUNT 2
+#define KPROBES_MAX_COUNT 10
 
 extern struct kprobe **kp;
 
@@ -73,6 +75,8 @@ void own_bdevname(struct block_device *bdev, char *buf);
 /* tracers */
 int vfs_write_trace(struct kprobe *p, struct pt_regs *regs);
 int vfs_unlink_trace(struct kprobe *p, struct pt_regs *regs);
+int vfs_rename_trace(struct kprobe *p, struct pt_regs *regs);
+int vfs_copy_trace(struct kprobe *p, struct pt_regs *regs);
 
 extern bool data_available;
 extern spinlock_t lock;
