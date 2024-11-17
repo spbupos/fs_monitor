@@ -72,7 +72,9 @@ const struct file_operations chardev_fops = {
         .poll = chardev_poll,
 };
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)
+static char *tracer_devnode(struct device *dev, mode_t *mode) {
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
 static char *tracer_devnode(struct device *dev, umode_t *mode) {
 #else
 static char *tracer_devnode(const struct device *dev, umode_t *mode) {
@@ -84,6 +86,10 @@ static char *tracer_devnode(const struct device *dev, umode_t *mode) {
 
 static int __init my_kprobe_init(void) {
     int ret, i;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+    printk(KERN_WARNING "%s: 'dentry_path' not exported on kernels earlier than 2.6.36-rc1, so absolute paths won't be resolved!", THIS_MODULE->name);
+#endif
 
     rbuf = kmalloc(sizeof(struct ring_buffer), GFP_KERNEL);
     if (!rbuf) {

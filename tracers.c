@@ -141,7 +141,14 @@ int vfs_unlink_trace(struct kprobe *p, struct pt_regs *regs) {
     sprintf(to_be_entry[0], "%lld", ktime_get_ns());
 
     /* file path */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+    path = path_buf;
+    sprintf(path, "<not_supported>");
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38)
+    path = __dentry_path(dentry, path_buf, MAX_PATH_LEN);
+#else
     path = dentry_path_raw(dentry, path_buf, MAX_PATH_LEN);
+#endif
     to_be_entry[1] = kmalloc(strlen(path) + 1, GFP_KERNEL);
     sprintf(to_be_entry[1], "%s", path);
 
