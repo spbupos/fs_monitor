@@ -177,10 +177,10 @@ void bdevname(struct block_device *bdev, char *buf) {
 	int partno = bdev->bd_partno;
 
 	if (!partno)
-		snprintf(buf, BDEVNAME_SIZE, "/dev/%s", hd->disk_name);
+		sprintf(buf, "/dev/%s", hd->disk_name);
 	else if (kisdigit(hd->disk_name[strlen(hd->disk_name)-1]))
-		snprintf(buf, BDEVNAME_SIZE, "/dev/%sp%d", hd->disk_name, partno);
+		sprintf(buf, "/dev/%sp%d", hd->disk_name, partno);
 	else
-		snprintf(buf, BDEVNAME_SIZE, "/dev/%s%d", hd->disk_name, partno);
+		sprintf(buf, "/dev/%s%d", hd->disk_name, partno);
 }
 EXPORT_SYMBOL(bdevname);
