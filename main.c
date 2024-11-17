@@ -1,5 +1,5 @@
 #include <linux/kprobes.h>
-#include <linux/printk.h>
+#include <linux/kernel.h>
 #include <linux/file.h>
 #include <linux/poll.h>
 #include <linux/device.h>
