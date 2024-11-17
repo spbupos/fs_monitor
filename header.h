@@ -10,6 +10,11 @@
 
 #define TODO() (void *)(0)
 
+/* minimum kernel version */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
+#error "Minimum supported kernel is 2.6.32-rc1"
+#endif
+
 
 /* init */
 #define KPROBES_MAX_COUNT 10
