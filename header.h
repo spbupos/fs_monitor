@@ -77,6 +77,6 @@ extern char monitor_entry[ENTRY_SIZE];
 
 
 /* poll */
-extern struct wait_queue_head wait_queue;
+extern wait_queue_head_t wait_queue;
 
 #endif // VARS_H

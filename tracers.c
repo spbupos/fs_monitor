@@ -64,9 +64,12 @@ int vfs_write_trace(struct kprobe *p, struct pt_regs *regs) {
 
     /* beginning data */
     to_be_entry[4] = kmalloc(BASE64_ENCODED_MAX, GFP_KERNEL);
-    write_count = copy_start_middle(kbuf, buf, count, 0);
-    r = base64_encode((const u8 *)kbuf, write_count, to_be_entry[4]);
-    to_be_entry[4][r] = '\0';
+    if (pos == 0) {
+        write_count = copy_start_middle(kbuf, buf, count, 0);
+        r = base64_encode((const u8 *) kbuf, write_count, to_be_entry[4]);
+        to_be_entry[4][r] = '\0';
+    } else
+        sprintf(to_be_entry[4], "<not_a_beginning>");
 
     /* write entry to ring buffer */
     r = entry_combiner(monitor_entry, (const char **)to_be_entry, ENTRY_WRITE_LENGTH);
