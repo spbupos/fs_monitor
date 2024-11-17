@@ -172,7 +172,7 @@ Elong:
 EXPORT_SYMBOL(own_dentry_path);
 
 /* device name resolver */
-void bdevname(struct block_device *bdev, char *buf) {
+void own_bdevname(struct block_device *bdev, char *buf) {
 	struct gendisk *hd = bdev->bd_disk;
 	int partno = bdev->bd_partno;
 
@@ -183,4 +183,4 @@ void bdevname(struct block_device *bdev, char *buf) {
 	else
 		sprintf(buf, "/dev/%s%d", hd->disk_name, partno);
 }
-EXPORT_SYMBOL(bdevname);
+EXPORT_SYMBOL(own_bdevname);

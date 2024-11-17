@@ -67,7 +67,7 @@ size_t entry_combiner(char *entry, const char **to_be_entry, size_t cnt);
 void free_ptr_array(void **ptr_array, size_t count);
 
 char *own_dentry_path(struct dentry *dentry, char *buf, int buflen);
-void bdevname(struct block_device *bdev, char *buf);
+void own_bdevname(struct block_device *bdev, char *buf);
 
 
 /* tracers */

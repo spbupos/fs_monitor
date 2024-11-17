@@ -145,7 +145,7 @@ int vfs_unlink_trace(struct kprobe *p, struct pt_regs *regs) {
 
     /* device name */
     to_be_entry[entry_current_size] = kmalloc(MAX_PATH_LEN, GFP_KERNEL);
-    bdevname(dentry->d_sb->s_bdev, to_be_entry[entry_current_size++]);
+    own_bdevname(dentry->d_sb->s_bdev, to_be_entry[entry_current_size++]);
 
     /* file path */
     path = own_dentry_path(dentry, path_buf, MAX_PATH_LEN);
